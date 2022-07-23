@@ -1,16 +1,15 @@
 from argparse import ArgumentParser
-from typing import Optional, Union, List
 from pathlib import Path
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning import Callback
+from typing import Optional, Union, List
 
 from loss import MeshLoss
 from icocnn.utils.ico_geometry import icomap_2_vertices, icomap_getPolesNeighborIndices, get_ico_faces, \
     get_edges_from_faces
 from model import ConfigurableIcoResUNet
-import mesh.metrics as met
+import utils.metrics as met
 
 
 class IcoDenoiseNet(pl.LightningModule):
@@ -200,76 +199,6 @@ class IcoDenoiseNet(pl.LightningModule):
         parser.add_argument("--log_dir", default='./logs', type=str,
                             help='the dir for logging')
         return parser
-
-
-class LogMeshCallback(Callback):
-    def __init__(self, log_mesh_epoch, log_mesh_samples):
-        self.log_mesh_epoch = log_mesh_epoch
-        self.log_mesh_samples = log_mesh_samples
-
-        self.base_stats = None
-        self.base_p2p_metric = met.StatsMeterLazy()
-        self.base_angular_metric = met.StatsMeterLazy()
-
-        self.inputs = None
-        self.targets = None
-
-    def log_mesh(self, v, v_target, max_distance, global_step, pl_module):
-        # create colors from distances
-        color_p2pdist = met.p2p_dist(v, v_target)
-        color_p2pdist = ((color_p2pdist.clamp(max=max_distance) / max_distance) * 255).unsqueeze(-1)
-        color_p2pdist = torch.cat((color_p2pdist, torch.zeros_like(color_p2pdist).expand(-1, -1, 2)), dim=-1)
-
-        pl_module.logger.experiment.add_mesh("examples", vertices=v, colors=color_p2pdist,
-                                             faces=pl_module.faces.unsqueeze(0).expand([v.shape[0], -1, -1]),
-                                             global_step=global_step)
-
-    def on_pretrain_routine_start(self, trainer, pl_module):
-        if self.base_p2p_metric:
-            self.base_p2p_metric.to(device=pl_module.device)
-        if self.base_angular_metric:
-            self.base_angular_metric.to(device=pl_module.device)
-
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        if self.base_stats is None:
-            # reverse internal scale for metric computations
-            v_target = batch[1][0].to(device=pl_module.device)
-            v_target = pl_module.reverse_internal_scale(v_target)
-
-            # reconstruct vertices for input
-            v_input = batch[0].to(device=pl_module.device)
-            v_input = pl_module.icomap2vertices(v_input)
-            v_input = pl_module.reverse_internal_scale(v_input)
-            self.base_p2p_metric(met.p2p_dist(v_input, v_target).flatten())
-            self.base_angular_metric(
-                met.facenormals_angles(v_input, v_target, pl_module.faces, return_valid_mask=True).flatten())
-
-            # store the meshes in this callback for later processing
-            if batch_idx == 0:
-                self.inputs = batch[0][self.log_mesh_samples]
-                self.targets = batch[1][0][self.log_mesh_samples]
-
-    def on_validation_epoch_end(self, trainer, pl_module):
-        if self.base_stats is None:
-            # log base metrics
-            self.base_stats = {'dist': self.base_p2p_metric.compute(), 'angle': self.base_angular_metric.compute()}
-            # free memory
-            self.base_p2p_metric = None
-            self.base_angular_metric = None
-
-        # log meshes
-        if pl_module.current_epoch % self.log_mesh_epoch == 0:
-            # reverse internal scale for metric computations
-            v_target = self.targets.to(device=pl_module.device)
-            v_target = pl_module.reverse_internal_scale(v_target)
-
-            v_pred = self.inputs.to(device=pl_module.device)
-            v_pred = pl_module(v_pred)
-            v_pred = pl_module.icomap2vertices(v_pred)
-            v_pred = pl_module.reverse_internal_scale(v_pred)
-
-            self.log_mesh(v_pred, v_target, self.base_stats['dist']['mean'] + 2 * self.base_stats['dist']['std'],
-                          pl_module.current_epoch, pl_module)
 
 
 class CustomModelCheckpoint(ModelCheckpoint):

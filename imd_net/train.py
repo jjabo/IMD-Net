@@ -2,9 +2,9 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from module import IcoDenoiseNet, CustomModelCheckpoint, LogMeshCallback
+from module import IcoDenoiseNet, CustomModelCheckpoint
 from loader import IcoMeshDataModule, IcoMeshPredictionModule
-from evaluate import SavePredictionsCallback
+from utils.logging import SavePredictionsCallback, LogMeshCallback
 
 
 def main(args):
