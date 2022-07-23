@@ -3,7 +3,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from module import IcoDenoiseNet, CustomModelCheckpoint
-from loader import IcoMeshDataModule, IcoMeshPredictionModule
+from data_loader import IcoMeshDataModule, IcoMeshPredictionModule
 from utils.logging import SavePredictionsCallback, LogMeshCallback
 
 

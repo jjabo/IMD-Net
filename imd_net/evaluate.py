@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 
 from module import IcoDenoiseNet
-from loader import IcoMeshPredictionModule
+from data_loader import IcoMeshPredictionModule
 from utils.logging import SavePredictionsCallback, SaveMetricsCallback
 
 

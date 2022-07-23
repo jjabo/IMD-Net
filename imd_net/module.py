@@ -8,7 +8,7 @@ from typing import Optional, Union, List
 from loss import MeshLoss
 from icocnn.utils.ico_geometry import icomap_2_vertices, icomap_getPolesNeighborIndices, get_ico_faces, \
     get_edges_from_faces
-from model import ConfigurableIcoResUNet
+from components import ConfigurableIcoResUNet
 import utils.metrics as met
 
 
