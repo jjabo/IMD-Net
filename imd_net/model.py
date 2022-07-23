@@ -22,7 +22,7 @@ class IcoDownR2R(nn.Module):
 
 class IcoUpResnetR2R(nn.Module):
     def __init__(self, in_features_upsampling, in_features, out_features, bias=True, subdivisions=0,
-                 corner_mode='zeros', uresnet_reverse=False):
+                 corner_mode='zeros'):
         super().__init__()
         if in_features_upsampling != in_features:
             self.bottleneck = IcoConvR2R(in_features=in_features_upsampling,
@@ -103,8 +103,7 @@ class ConfigurableIcoResUNet(nn.Module):
                                out_features=up_features_out[i],
                                bias=True,
                                subdivisions=subdivisions - (i + 1),
-                               corner_mode=corner_mode,
-                               uresnet_reverse=False
+                               corner_mode=corner_mode
                                )
             )
 
