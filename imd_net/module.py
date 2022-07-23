@@ -170,7 +170,7 @@ class IcoDenoiseNet(pl.LightningModule):
                             help='Mode for computing corners of icosahedron')
         parser.add_argument('--subdivisions', default=5, type=int,
                             help='subdivisions of icosahedral input data')
-        parser.add_argument('--encoder_depth', default=4, type=int,
+        parser.add_argument('--encoder_depth', default=3, type=int,
                             help='number of layers in encoder')
         parser.add_argument('--layer_init_features', default=28, type=int,
                             help='number of features in first (and last) layer of encoder')
@@ -194,7 +194,7 @@ class IcoDenoiseNet(pl.LightningModule):
         # params for logging
         parser.add_argument("--log_mesh_epoch", default=4, type=int,
                             help='on every x-th epoch meshes are logged')
-        parser.add_argument("--log_mesh_samples", default=[0, 1, 2], type=int, nargs='+',
+        parser.add_argument("--log_mesh_samples", default=[0], type=int, nargs='+',
                             help='which meshes of the first validation batch should be logged')
         parser.add_argument("--log_dir", default='./logs', type=str,
                             help='the dir for logging')
