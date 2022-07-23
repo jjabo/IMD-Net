@@ -530,7 +530,7 @@ class IcoBatchNorm(nn.BatchNorm3d):
         N, C, H, W = input.size()
         D = self.D
         #assert torch.remainder(C, D) == 0
-        G = C // D
+        G = torch.div(C, D, rounding_mode='trunc')
 
         # reshape to 3D data
         input = input.view(N, G, D, H, W)
