@@ -67,10 +67,10 @@ class IcoMeshDataset(Dataset):
 
     def _loaditem(self, idx):
         fname = self.flist[idx]
-        data = np.load(fname)["data"][:3, :-2]
+        data = np.load(str(fname))["data"][:3, :-2]
         data = data.reshape(data.shape[0], -1, self.icomap_width)
 
-        targets = np.load(fname)["targets"]
+        targets = np.load(str(fname))["targets"]
 
         if self.data_internal_scale:
             data = data * self.data_internal_scale
@@ -79,7 +79,7 @@ class IcoMeshDataset(Dataset):
         # compute vertex mask for enhancing features
         feature_mask = np.ones([targets.shape[1]])
         if self.vmask_thres:
-            vertex_mask = np.load(fname)["v_max_dangles"].flatten()
+            vertex_mask = np.load(str(fname))["v_max_dangles"].flatten()
             feature_mask[vertex_mask > self.vmask_thres] = self.vmask_weight
         feature_mask = torch.from_numpy(feature_mask).unsqueeze(-1).expand(-1, 3)
 
@@ -129,6 +129,14 @@ class IcoMeshDataModule(pl.LightningDataModule):
         self.val_count = 0
         self.test_count = 0
 
+    def _create_val_dataloader(self):
+        dataset = IcoMeshDataset(str(self.data_dir), "val", self.subdivisions, self.data_internal_scale,
+                                 self.load_data_to_ram, self.vmask_thres, self.vmask_weight, self.fmask_thres,
+                                 self.fmask_weight)
+        loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False,
+                            drop_last=False, pin_memory=True)
+        return loader
+
     def prepare_data(self):
         assert ~self.train_file.exists() or ~self.train_file.is_file(), \
             '{} does not exist or is not a dir'.format(self.train_file)
@@ -161,7 +169,7 @@ class IcoMeshDataModule(pl.LightningDataModule):
         pass
 
     def train_dataloader(self):
-        dataset = IcoMeshDataset(self.data_dir, "train", self.subdivisions, self.data_internal_scale,
+        dataset = IcoMeshDataset(str(self.data_dir), "train", self.subdivisions, self.data_internal_scale,
                                  self.load_data_to_ram, self.vmask_thres, self.vmask_weight, self.fmask_thres,
                                  self.fmask_weight)
         loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True,
@@ -169,12 +177,7 @@ class IcoMeshDataModule(pl.LightningDataModule):
         return loader
 
     def val_dataloader(self):
-        dataset = IcoMeshDataset(self.data_dir, "val", self.subdivisions, self.data_internal_scale,
-                                 self.load_data_to_ram, self.vmask_thres, self.vmask_weight, self.fmask_thres,
-                                 self.fmask_weight)
-        loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False,
-                            drop_last=False, pin_memory=True)
-        return loader
+        return self._create_val_dataloader()
 
     def test_dataloader(self):
         return None
@@ -231,9 +234,4 @@ class IcoMeshPredictionModule(IcoMeshDataModule):
         pass
 
     def test_dataloader(self):
-        dataset = IcoMeshDataset(self.data_dir, "val", self.subdivisions, self.data_internal_scale,
-                                 self.load_data_to_ram, self.vmask_thres, self.vmask_weight, self.fmask_thres,
-                                 self.fmask_weight)
-        loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False,
-                            drop_last=False, pin_memory=True)
-        return loader
+        return self._create_val_dataloader()
