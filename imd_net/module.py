@@ -168,7 +168,7 @@ class IcoDenoiseNet(pl.LightningModule):
 
         parser.add_argument("--corner_mode", default='average', type=str, choices=['average', 'zeros'],
                             help='Mode for computing corners of icosahedron')
-        parser.add_argument('--subdivisions', default=5, type=int,
+        parser.add_argument('--subdivisions', default=6, type=int,
                             help='subdivisions of icosahedral input data')
         parser.add_argument('--encoder_depth', default=3, type=int,
                             help='number of layers in encoder')
