@@ -12,9 +12,10 @@ class IcoMeshDataset(Dataset):
 
     def __init__(self,
                  data_dir: str,
-                 partition: str = "train",
-                 subdivisions: int = 5,
-                 data_internal_scale: float = None,
+                 splits_dir: str,
+                 partition: str,
+                 subdivisions: int,
+                 data_internal_scale: float,
                  load_data_to_ram: bool = False,
                  vmask_thres: float = None,
                  vmask_weight: float = None,
@@ -34,17 +35,14 @@ class IcoMeshDataset(Dataset):
             '{} does not exist or is not a dir'.format(dataset_path)
 
         # get file list
-        splits_dir = Path(__file__).parent.absolute() / "splits"
-        if partition == 'all':
-            lines = []
-            for part in ["train", "test", "val"]:
-                split_file = splits_dir / "{}_split_{}.txt".format(part, dataset_path.name)
-                with open(split_file, "r") as f:
-                    lines.extend(f.readlines())
-        else:
-            split_file = splits_dir / "{}_split_{}.txt".format(partition, dataset_path.name)
+        splits_dir = Path(splits_dir)
+        partitions = ['train', 'test', 'val'] if partition == 'all' else [partition]
+        lines = []
+        for part in partitions:
+            split_file = splits_dir / "{}_split_{}.txt".format(part, dataset_path.name)
             with open(split_file, "r") as f:
-                lines = f.readlines()
+                lines.extend(f.readlines())
+
         self.flist = [dataset_path.joinpath(l.replace('\n', '').split(' ')[0]) for l in lines]
 
         self.icomap_width = 2 ** (subdivisions + 1)
@@ -90,6 +88,7 @@ class IcoMeshDataModule(pl.LightningDataModule):
     def __init__(
             self,
             data_dir: str,
+            splits_dir: str,
             batch_size: int,
             subdivisions: int,
             data_internal_scale: float,
@@ -104,11 +103,11 @@ class IcoMeshDataModule(pl.LightningDataModule):
         data_dir = Path(data_dir)
 
         # check sanity of input
-        assert ~data_dir.exists() or ~data_dir.is_dir(), \
-            '{} does not exist or is not a dir'.format(data_dir)
+        assert ~data_dir.exists() or ~data_dir.is_dir(), '{} does not exist or is not a dir'.format(data_dir)
         assert subdivisions >= 0, 'subdivision must be >= 0'
 
         self.data_dir = data_dir
+        self.splits_dir = splits_dir
         self.batch_size = batch_size
         self.subdivisions = subdivisions
         self.data_internal_scale = data_internal_scale
@@ -119,59 +118,24 @@ class IcoMeshDataModule(pl.LightningDataModule):
         self.fmask_thres = fmask_thres
         self.fmask_weight = fmask_weight
 
-        splits_dir = Path(__file__).parent.absolute() / "splits"
-
-        self.train_file = splits_dir / "train_split_{}.txt".format(Path(self.data_dir).name)
-        self.val_file = splits_dir / "val_split_{}.txt".format(Path(self.data_dir).name)
-        self.test_file = splits_dir / "test_split_{}.txt".format(Path(self.data_dir).name)
-
-        self.train_count = 0
-        self.val_count = 0
-        self.test_count = 0
-
     def _create_val_dataloader(self):
-        dataset = IcoMeshDataset(str(self.data_dir), "val", self.subdivisions, self.data_internal_scale,
-                                 self.load_data_to_ram, self.vmask_thres, self.vmask_weight, self.fmask_thres,
-                                 self.fmask_weight)
+        dataset = IcoMeshDataset(str(self.data_dir), self.splits_dir, "val",
+                                 self.subdivisions, self.data_internal_scale, self.load_data_to_ram,
+                                 self.vmask_thres, self.vmask_weight, self.fmask_thres, self.fmask_weight)
         loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False,
                             drop_last=False, pin_memory=True)
         return loader
 
-    def prepare_data(self):
-        assert ~self.train_file.exists() or ~self.train_file.is_file(), \
-            '{} does not exist or is not a dir'.format(self.train_file)
-        assert ~self.val_file.exists() or ~self.val_file.is_file(), \
-            '{} does not exist or is not a dir'.format(self.val_file)
-        assert ~self.test_file.exists() or ~self.test_file.is_file(), \
-            '{} does not exist or is not a dir'.format(self.test_file)
-
-        with self.train_file.open('r') as f:
-            i = -1
-            for i, l in enumerate(f):
-                pass
-            self.train_count = i + 1
-
-        with self.val_file.open('r') as f:
-            i = -1
-            for i, l in enumerate(f):
-                pass
-            self.val_count = i + 1
-
-        with self.test_file.open('r') as f:
-            i = -1
-            for i, l in enumerate(f):
-                pass
-            self.test_count = i + 1
-            # lines = f.readlines()
-            # tmp_list = [(self.data_dir / line.strip()) for line in lines]
+    def prepare_data(self, *args, **kwargs):
+        pass
 
     def setup(self, stage=None):
         pass
 
     def train_dataloader(self):
-        dataset = IcoMeshDataset(str(self.data_dir), "train", self.subdivisions, self.data_internal_scale,
-                                 self.load_data_to_ram, self.vmask_thres, self.vmask_weight, self.fmask_thres,
-                                 self.fmask_weight)
+        dataset = IcoMeshDataset(str(self.data_dir), self.splits_dir, "train",
+                                 self.subdivisions, self.data_internal_scale, self.load_data_to_ram,
+                                 self.vmask_thres, self.vmask_weight, self.fmask_thres, self.fmask_weight)
         loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True,
                             drop_last=True, pin_memory=True)
         return loader
@@ -188,7 +152,9 @@ class IcoMeshDataModule(pl.LightningDataModule):
 
         parser.add_argument("--data_dir", default='./', type=str,
                             help='path to the directory that contains the dataset')
-        parser.add_argument('-b', '--batch_size', default=48, type=int,
+        parser.add_argument("--splits_dir", default="../examples", type=str,
+                            help='path to the directory that contains the dataset splits (training, validation, test)')
+        parser.add_argument('-b', '--batch_size', default=8, type=int,
                             help='the batch size')
 
         parser.add_argument('--load_data_to_ram', action='store_true',
@@ -208,24 +174,6 @@ class IcoMeshDataModule(pl.LightningDataModule):
 
 
 class IcoMeshPredictionModule(IcoMeshDataModule):
-    def __init__(self,
-                 data_dir: str,
-                 batch_size: int,
-                 subdivisions: int,
-                 data_internal_scale: float,
-                 load_data_to_ram: bool = False,
-                 vmask_thres: float = None,
-                 vmask_weight: float = None,
-                 fmask_thres: float = None,
-                 fmask_weight: float = None):
-        super().__init__(data_dir, batch_size, subdivisions, data_internal_scale, load_data_to_ram,
-                         vmask_thres, vmask_weight, fmask_thres, fmask_weight)
-
-    def prepare_data(self):
-        pass
-
-    def setup(self, stage=None):
-        pass
 
     def train_dataloader(self):
         pass
