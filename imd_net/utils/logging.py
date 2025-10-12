@@ -16,16 +16,16 @@ class SavePredictionsCallback(Callback):
         assert self.save_dir.exists() and self.save_dir.is_dir(), "{} is not a dir".format(self.save_dir)
 
     def on_test_epoch_start(self, trainer, pl_module):
-        self.flist = pl_module.test_dataloader().dataset.flist
+        self.flist = trainer.test_dataloaders.dataset.flist
         folder_name = self.flist[0].parent.name
-        self.final_save_dir = self.save_dir / "{}_IDN_npz".format(folder_name)
-        assert not self.final_save_dir.exists(), "{} already exists".format(self.final_save_dir)
+        self.final_save_dir = self.save_dir / f"{folder_name}_IDN_npz"
+        assert not self.final_save_dir.exists(), f"{self.final_save_dir} already exists"
         self.final_save_dir.mkdir()
 
     def on_test_batch_end(
         self,
-        trainer: "pl.Trainer",
-        pl_module: "pl.LightningModule",
+        trainer,
+        pl_module,
         outputs,
         batch,
         batch_idx: int,
@@ -34,17 +34,14 @@ class SavePredictionsCallback(Callback):
         # unpack batch
         _, targets, idx = batch
 
-        # # create predictions
-        # data_hat = pl_module(data.to(pl_module.device, non_blocking=True))
-
         # transform to vertices
         v = pl_module.reverse_internal_scale(pl_module.icomap2vertices(outputs)).cpu().numpy()
-        v_target = pl_module.reverse_internal_scale(targets[0]).numpy()
+        v_target = pl_module.reverse_internal_scale(targets[0]).cpu().numpy()
 
         for i in range(v.shape[0]):
             # get original file name and construct output filename
             f_name = self.flist[idx[i]]
-            f_out_absolute = self.final_save_dir / "{}_denoised.npz".format(f_name.stem)
+            f_out_absolute = self.final_save_dir / f"{f_name.stem}_denoised.npz"
 
             # load vertex and face masks
             v_mask = np.load(f_name)["v_max_dangles"]
@@ -67,7 +64,7 @@ class SaveMetricsCallback(Callback):
     def __init__(self, save_file: str):
         super().__init__()
         self.save_file = Path(save_file)
-        assert not self.save_file.exists(), "{} already exists".format(save_file)
+        assert not self.save_file.exists(), f"{save_file} already exists"
 
         self.flist = None
         self.header = "name,dist_mean,dist_max,dist_min,dist_std,angdiff_mean,angdiff_max,angdiff_min,angdiff_std"
@@ -82,12 +79,12 @@ class SaveMetricsCallback(Callback):
         self.angdiff_std = np.array([])
 
     def on_test_epoch_start(self, trainer, pl_module):
-        self.flist = pl_module.test_dataloader().dataset.flist
+        self.flist = trainer.test_dataloaders.dataset.flist
 
     def on_test_batch_end(
         self,
-        trainer: "pl.Trainer",
-        pl_module: "pl.LightningModule",
+        trainer,
+        pl_module,
         outputs,
         batch,
         batch_idx: int,
@@ -161,7 +158,7 @@ class LogMeshCallback(Callback):
             global_step=global_step,
         )
 
-    def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
+    def setup(self, trainer, pl_module, stage: str) -> None:
         if self.base_p2p_metric:
             self.base_p2p_metric.to(device=pl_module.device)
         if self.base_angular_metric:
@@ -169,8 +166,8 @@ class LogMeshCallback(Callback):
 
     def on_validation_batch_end(
         self,
-        trainer: "pl.Trainer",
-        pl_module: "pl.LightningModule",
+        trainer,
+        pl_module,
         outputs,
         batch,
         batch_idx: int,
