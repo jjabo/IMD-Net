@@ -92,3 +92,5 @@ coverage.xml
 /.idea/codeStyles/
 
 .run/*
+
+logs/*
