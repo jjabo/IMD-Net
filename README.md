@@ -37,3 +37,7 @@ A subset of the data used in the paper can be found here: [abc_small_gwn02](http
 The data is a random subset of the [ABC dataset](https://deep-geometry.github.io/abc-dataset/) and as the name indicates, gaussian white noise with ~N(0, 0.02) was added to the vertex positions. Each mesh in the dataset is represented by a `.npz` file containing the following entries:
 - `data`: Noisy vertex positions
 - `targets`: Ground truth vertex positions
+
+## References
+
+The code in the imd_net/icocnn module is an implementation of [Gauge Equivariant Convolutional Networks and the Icosahedral CNN](https://arxiv.org/abs/1902.04615)
