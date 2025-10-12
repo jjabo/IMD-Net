@@ -1,0 +1,53 @@
+# lightning.pytorch==2.5.5
+seed_everything: true
+trainer:
+  devices: auto
+  num_nodes: 1
+  precision: 16-mixed
+  logger:
+    - class_path: lightning.pytorch.loggers.tensorboard.TensorBoardLogger
+      init_args:
+        save_dir: "./logs"
+        log_graph: true
+        default_hp_metric: false
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        filename: "checkpoint-{epoch:02d}-{val_loss:.2f}"
+        save_top_k: 2
+        monitor: "val_loss"
+        mode: "min"
+    - class_path: utils.logging.LogMeshCallback
+      init_args:
+        log_mesh_epoch: 4
+        log_mesh_samples:
+          - 0
+  max_epochs: 96
+  num_sanity_val_steps: -1
+  log_every_n_steps: 2
+  enable_progress_bar: true
+  enable_model_summary: true
+model:
+  corner_mode: average
+  subdivisions: 6
+  encoder_depth: 3
+  layer_init_features: 28
+  layer_feature_factor: 1.6
+  loss_pos_weight: 1.0
+  loss_nor_weight: 0
+  loss_cur_weight: 10.0
+  learning_rate: 0.00045
+  data_internal_scale: 10000.0
+  log_mesh_epoch: 4
+  log_mesh_samples:
+    - 0
+  log_dir: ./logs
+data:
+  data_dir: null
+  splits_dir: null
+  batch_size: 8
+  load_data_to_ram: false
+  vmask_thres: null
+  vmask_weight: null
+  fmask_thres: null
+  fmask_weight: null

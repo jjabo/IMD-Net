@@ -1,0 +1,12 @@
+[project]
+name = "imd-net-dev"
+version = "1.0.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "lightning[pytorch-extra]==2.5.5",
+    "numpy==1.23.1",
+    "tensorboard==2.20.0",
+    "torch==2.8.0",
+]

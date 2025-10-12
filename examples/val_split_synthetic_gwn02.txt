@@ -1,0 +1,10 @@
+00000001_armadillo_n2.npz
+00000006_child_n2.npz
+00000008_cube_n2.npz
+00000010_eros100K_n2.npz
+00000012_gargoyle_n2.npz
+00000022_Pyramid_n2.npz
+00000024_screwdriver_n2.npz
+00000025_sharp_sphere_n2.npz
+00000026_smooth-feature_n2.npz
+00000028_star_n2.npz
