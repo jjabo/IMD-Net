@@ -1,9 +1,8 @@
-from argparse import ArgumentParser
 from pathlib import Path
 import torch
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
-from typing import Optional, Union, List
+import lightning as pl
+from lightning.pytorch.callbacks import ModelCheckpoint
+from typing import Optional, Union, List, Literal
 
 from loss import MeshLoss
 from icocnn.utils.ico_geometry import icomap_2_vertices, icomap_getPolesNeighborIndices, get_ico_faces, \
@@ -11,51 +10,95 @@ from icocnn.utils.ico_geometry import icomap_2_vertices, icomap_getPolesNeighbor
 from components import ConfigurableIcoResUNet
 import utils.metrics as met
 
-
 class IcoDenoiseNet(pl.LightningModule):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
+    """A denoising network for icosahedral meshes based on a U-Net architecture with group equivariant convolutions.
 
+    Args:
+        corner_mode: Mode for computing corners of icosahedron. Either 'average' or 'zeros'.
+        batch_size: The batch size for training, needed here for tensorboard logging
+        subdivisions: Subdivisions of icosahedral input data.
+        encoder_depth: Number of layers in encoder.
+        layer_init_features: Number of features in first (and last) layer of encoder.
+        layer_feature_factor: The factor by which number of features are increased in each encoder layer.
+        loss_pos_weight: The weight of the loss function on vertex positions.
+        loss_nor_weight: The weight of the loss function on angular difference between face normals.
+        loss_cur_weight: The weight of the loss function on mean curvature.
+        learning_rate: The learning rate for optimizer.
+        data_internal_scale: The scale that is applied internally to the input data.
+        log_mesh_epoch: On every x-th epoch meshes are logged.
+        log_mesh_samples: Which meshes of the first validation batch should be logged.
+        log_dir: The dir for logging.
+    """
+    def __init__(self,
+                 corner_mode: Literal['average', 'zeros'] = 'average',
+                 batch_size: int = 8,
+                 subdivisions: int = 6,
+                 encoder_depth: int = 3,
+                 layer_init_features: int = 28,
+                 layer_feature_factor: float = 1.6,
+                 loss_pos_weight: float = 1.0,
+                 loss_nor_weight: float = 0,
+                 loss_cur_weight: float = 10.0,
+                 learning_rate: float = 4.5e-4,
+                 data_internal_scale: float = 10000.0,
+                 log_mesh_epoch: int = 4,
+                 log_mesh_samples: List[int] = [0],
+                 log_dir: str = './logs'):
+        super().__init__()
         self.save_hyperparameters()
+        self.corner_mode = corner_mode
+        self.batch_size = batch_size
+        self.subdivisions = subdivisions
+        self.encoder_depth = encoder_depth
+        self.layer_init_features = layer_init_features
+        self.layer_feature_factor = layer_feature_factor
+        self.loss_pos_weight = loss_pos_weight
+        self.loss_nor_weight = loss_nor_weight
+        self.loss_cur_weight = loss_cur_weight
+        self.learning_rate = learning_rate
+        self.data_internal_scale = data_internal_scale
+        self.log_mesh_epoch = log_mesh_epoch
+        self.log_mesh_samples = log_mesh_samples
+        self.log_dir = log_dir
 
         # create the network
-        self.net = ConfigurableIcoResUNet(self.hparams.corner_mode,
-                                          self.hparams.subdivisions,
-                                          self.hparams.encoder_depth,
-                                          self.hparams.layer_init_features,
-                                          self.hparams.layer_feature_factor)
+        self.net = ConfigurableIcoResUNet(self.corner_mode,
+                                          self.subdivisions,
+                                          self.encoder_depth,
+                                          self.layer_init_features,
+                                          self.layer_feature_factor)
         # store trainable parameters
-        kwargs['trainable_params'] = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
+        self.trainable_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
         self.save_hyperparameters()
 
-        # logging
+        self.validation_step_outputs = []
+
+        # tensorboard needs this for logging the model graph
         self.example_input_array = torch.rand([
-            self.hparams.batch_size if "batch_size" in self.hparams else 4,
-            3, 5 * (2 ** self.hparams.subdivisions), 2 ** (self.hparams.subdivisions + 1)])
+            self.batch_size, 3, 5 * (2**self.subdivisions),
+            2**(self.subdivisions + 1)
+        ])
 
         # loss function
-        self.loss_function = MeshLoss(
-            self.hparams.loss_pos_weight, self.hparams.loss_nor_weight, self.hparams.loss_cur_weight,
-            # self.hparams.loss_use_lap_not_emc
-        )
+        self.loss_function = MeshLoss(self.loss_pos_weight, self.loss_nor_weight, self.loss_cur_weight)
 
         # initialize properties and indices for icocnn nets
-        # indices for averaging  north and southpole vertices from their neighbors
-        corner_src_x, corner_src_y = icomap_getPolesNeighborIndices(self.hparams.subdivisions)
+        # indices for averaging north and southpole vertices from their neighbors
+        corner_src_x, corner_src_y = icomap_getPolesNeighborIndices(self.subdivisions)
         self.register_buffer('corner_src_y', corner_src_y)
         self.register_buffer('corner_src_x', corner_src_x)
         # faces, faces adjacent to edges and vertices that compose edges
-        ico_faces = get_ico_faces(self.hparams.subdivisions)
+        ico_faces = get_ico_faces(self.subdivisions)
         edge_vertices, edge_faces = get_edges_from_faces(ico_faces)
         self.register_buffer('faces', torch.from_numpy(ico_faces))
         self.register_buffer('edge_vertices', torch.from_numpy(edge_vertices))
         self.register_buffer('edge_faces', torch.from_numpy(edge_faces))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_hat = self.net(x)
         return x_hat
 
-    def step(self, batch):
+    def step(self, batch: tuple) -> tuple:
         data, targets, idx = batch
 
         # feed data to net
@@ -78,7 +121,7 @@ class IcoDenoiseNet(pl.LightningModule):
         return v
 
     def reverse_internal_scale(self, v):
-        return v / self.hparams.data_internal_scale
+        return v / self.data_internal_scale
 
     def training_step(self, batch, batch_idx):
         loss, logs, _, _ = self.step(batch)
@@ -105,6 +148,9 @@ class IcoDenoiseNet(pl.LightningModule):
                           'angdiff_mean': angdiff.mean(), 'angdiff_max': angdiff.max(),
                           })
 
+        # store values for epoch end logging
+        self.validation_step_outputs.append(loss_logs)
+
         return loss_logs
 
     def test_step(self, batch, batch_idx):
@@ -115,17 +161,17 @@ class IcoDenoiseNet(pl.LightningModule):
 
         return data_hat
 
-    def validation_epoch_end(self, validation_step_outputs):
-        num_samples = validation_step_outputs[0]['batch_size']
-        loss_tot = validation_step_outputs[0]['loss_tot'] * num_samples
-        loss_pos = validation_step_outputs[0]['loss_pos'] * num_samples
-        loss_nor = validation_step_outputs[0]['loss_nor'] * num_samples
-        loss_cur = validation_step_outputs[0]['loss_cur'] * num_samples
-        dist_mean = validation_step_outputs[0]['dist_mean'] * num_samples
-        dist_max = validation_step_outputs[0]['dist_max']
-        angdiff_mean = validation_step_outputs[0]['angdiff_mean'] * num_samples
-        angdiff_max = validation_step_outputs[0]['angdiff_max']
-        for step_logs in validation_step_outputs[1:]:
+    def on_validation_epoch_end(self):
+        num_samples = self.validation_step_outputs[0]['batch_size']
+        loss_tot = self.validation_step_outputs[0]['loss_tot'] * num_samples
+        loss_pos = self.validation_step_outputs[0]['loss_pos'] * num_samples
+        loss_nor = self.validation_step_outputs[0]['loss_nor'] * num_samples
+        loss_cur = self.validation_step_outputs[0]['loss_cur'] * num_samples
+        dist_mean = self.validation_step_outputs[0]['dist_mean'] * num_samples
+        dist_max = self.validation_step_outputs[0]['dist_max']
+        angdiff_mean = self.validation_step_outputs[0]['angdiff_mean'] * num_samples
+        angdiff_max = self.validation_step_outputs[0]['angdiff_max']
+        for step_logs in self.validation_step_outputs[1:]:
             loss_tot += step_logs['loss_tot'] * step_logs['batch_size']
             loss_pos += step_logs['loss_pos'] * step_logs['batch_size']
             loss_nor += step_logs['loss_nor'] * step_logs['batch_size']
@@ -153,6 +199,8 @@ class IcoDenoiseNet(pl.LightningModule):
         self.log('dist', dist_mean / num_samples)
         self.log('angdiff', angdiff_mean / num_samples)
 
+        self.validation_step_outputs.clear()
+
     def log_scalars(self, chart_tile, scalar_prefix, scalar_dict):
         self.logger.experiment.add_scalars(chart_tile,
                                            {f"{scalar_prefix}_{k}": v for k, v in scalar_dict.items()},
@@ -161,81 +209,3 @@ class IcoDenoiseNet(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.net.parameters(), lr=self.hparams.learning_rate)
         return optimizer
-
-    @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = ArgumentParser(parents=[parent_parser], add_help=False)
-
-        parser.add_argument("--corner_mode", default='average', type=str, choices=['average', 'zeros'],
-                            help='Mode for computing corners of icosahedron')
-        parser.add_argument('--subdivisions', default=6, type=int,
-                            help='subdivisions of icosahedral input data')
-        parser.add_argument('--encoder_depth', default=3, type=int,
-                            help='number of layers in encoder')
-        parser.add_argument('--layer_init_features', default=28, type=int,
-                            help='number of features in first (and last) layer of encoder')
-        parser.add_argument('--layer_feature_factor', default=1.6, type=float,
-                            help='the factor by which number of features are increased in each encoder layer')
-        # loss function params
-        parser.add_argument('--loss_pos_weight', default=1.0, type=float,
-                            help='the weight of the loss function on vertex positions')
-        parser.add_argument('--loss_nor_weight', default=0, type=float,
-                            help='the weight of the loss function on angular difference between face normals')
-        parser.add_argument('--loss_cur_weight', default=10, type=float,
-                            help='the weight of the loss function on mean curvature')
-        # learning rate
-        parser.add_argument("--learning_rate", default=4.5e-4, type=float,
-                            help='the learning rate for optimizer')
-
-        # params for internal handling of data
-        parser.add_argument("--data_internal_scale", default=10000.0, type=float,
-                            help='the scale that is applied internally to the input data')
-
-        # params for logging
-        parser.add_argument("--log_mesh_epoch", default=4, type=int,
-                            help='on every x-th epoch meshes are logged')
-        parser.add_argument("--log_mesh_samples", default=[0], type=int, nargs='+',
-                            help='which meshes of the first validation batch should be logged')
-        parser.add_argument("--log_dir", default='./logs', type=str,
-                            help='the dir for logging')
-        return parser
-
-
-class CustomModelCheckpoint(ModelCheckpoint):
-    def __init__(
-            self,
-            monitor: Optional[str] = None,
-            hp_metrics: Optional[List[str]] = None,
-            verbose: bool = False,
-            save_top_k: int = 1,
-            save_weights_only: bool = False,
-            mode: str = "auto",
-            period: int = 1,
-            prefix: str = "",
-            dirpath: Optional[Union[str, Path]] = None,
-            filename: Optional[str] = None):
-        super().__init__(
-            monitor=monitor, verbose=verbose, save_last=True,
-            save_top_k=save_top_k, save_weights_only=save_weights_only, mode=mode,
-            period=period, prefix=prefix, dirpath=dirpath, filename=filename)
-
-        self.hp_metrics = hp_metrics
-
-    def on_validation_end(self, trainer, pl_module):
-        super().on_validation_end(trainer, pl_module)
-
-        metrics = self._monitor_candidates(trainer)
-        if self.best_model_score and isinstance(self.best_model_score, torch.Tensor):
-            self.best_model_score = self.best_model_score.cuda(metrics.get(self.monitor).get_device()) \
-                if metrics.get(self.monitor).is_cuda else self.best_model_score
-
-        if self.best_model_score == metrics.get(self.monitor):
-            # remove keys that are not relevant
-            for key in list(metrics.keys()):
-                if key not in self.hp_metrics:
-                    del metrics[key]
-
-            # rename metrics to avoid overwriting original metric
-            metrics = {f"m_{k}": v for k, v in metrics.items()}
-
-            pl_module.logger.log_hyperparams(pl_module.hparams, metrics)

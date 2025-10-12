@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 from pathlib import Path
-from pytorch_lightning.callbacks import Callback
+from lightning.pytorch.callbacks import Callback
+from typing import List
 from .metrics import facenormals_angles, p2p_dist, StatsMeterLazy
 
 
@@ -21,7 +22,15 @@ class SavePredictionsCallback(Callback):
         assert not self.final_save_dir.exists(), '{} already exists'.format(self.final_save_dir)
         self.final_save_dir.mkdir()
 
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_test_batch_end(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs,
+        batch,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
         # unpack batch
         _, targets, idx = batch
 
@@ -69,7 +78,15 @@ class SaveMetricsCallback(Callback):
     def on_test_epoch_start(self, trainer, pl_module):
         self.flist = pl_module.test_dataloader().dataset.flist
 
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_test_batch_end(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs,
+        batch,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
         # unpack batch
         _, targets, idx = batch
 
@@ -124,13 +141,21 @@ class LogMeshCallback(Callback):
                                              faces=pl_module.faces.unsqueeze(0).expand([v.shape[0], -1, -1]),
                                              global_step=global_step)
 
-    def on_pretrain_routine_start(self, trainer, pl_module):
+    def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
         if self.base_p2p_metric:
             self.base_p2p_metric.to(device=pl_module.device)
         if self.base_angular_metric:
             self.base_angular_metric.to(device=pl_module.device)
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_validation_batch_end(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs,
+        batch,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ):
         if self.base_stats is None:
             # reverse internal scale for metric computations
             v_target = batch[1][0].to(device=pl_module.device)

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from pytorch_lightning.metrics import Metric
+from torchmetrics import Metric
 
 from .mesh import compute_face_normals
 
@@ -30,8 +30,8 @@ def p2p_dist(v: torch.Tensor, v_gt: torch.Tensor):
 
 
 class StatsMeterLazy(Metric):
-    def __init__(self, compute_on_step=False):
-        super().__init__(compute_on_step=compute_on_step)
+    def __init__(self):
+        super().__init__()
         self.add_state("vals", default=torch.FloatTensor(0))
 
     def update(self, vals: torch.Tensor):

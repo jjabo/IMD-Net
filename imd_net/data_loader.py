@@ -2,26 +2,40 @@ import numpy as np
 import os
 import torch
 from torch.utils.data import Dataset, DataLoader
-import pytorch_lightning as pl
+import lightning as pl
 from pathlib import Path
-from argparse import ArgumentParser
+from typing import Optional
 
 
 class IcoMeshDataset(Dataset):
-    """Data loader for IcoMesh datasets."""
+    """Data loader for IcoMesh datasets.
 
-    def __init__(self,
-                 data_dir: str,
-                 splits_dir: str,
-                 partition: str,
-                 subdivisions: int,
-                 data_internal_scale: float,
-                 load_data_to_ram: bool = False,
-                 vmask_thres: float = None,
-                 vmask_weight: float = None,
-                 fmask_thres: float = None,
-                 fmask_weight: float = None
-                 ):
+    Args:
+        data_dir: path to data directory
+        splits_dir: path to the directory that contains the dataset splits (training, validation, test)
+        partition: train, val, test or all
+        subdivisions: the number of subdivisions of the icosahedral mesh
+        data_internal_scale: Internal scaling of the data
+        load_data_to_ram: load the entire dataset to the RAM for training
+        vmask_thres: the threshold dihedral angle above which vertices get weighted
+        vmask_weight: the factor to use for weighted vertices
+        fmask_thres: the threshold dihedral angle above which faces get weighted
+        fmask_weight: the factor to use for weighted faces
+    """
+
+    def __init__(
+        self,
+        data_dir: str,
+        splits_dir: str,
+        partition: str,
+        subdivisions: int,
+        data_internal_scale: float,
+        load_data_to_ram: bool = False,
+        vmask_thres: Optional[float] = None,
+        vmask_weight: Optional[float] = None,
+        fmask_thres: Optional[float] = None,
+        fmask_weight: Optional[float] = None,
+    ):
         """
         Args:
             data_dir: path to data directory
@@ -85,18 +99,34 @@ class IcoMeshDataset(Dataset):
 
 
 class IcoMeshDataModule(pl.LightningDataModule):
+    """Lightning data module for IcoMesh datasets.
+
+    Args:
+        data_dir: path to data directory
+        splits_dir: path to the directory that contains the dataset splits (training, validation, test)
+        batch_size: the batch size
+        subdivisions: the number of subdivisions of the icosahedral mesh
+        data_internal_scale: Internal scaling of the data
+        load_data_to_ram: load the entire dataset to the RAM for training
+        vmask_thres: the threshold dihedral angle above which vertices get weighted
+        vmask_weight: the factor to use for weighted vertices
+        fmask_thres: the threshold dihedral angle above which faces get weighted
+        fmask_weight: the factor to use for weighted faces
+    """
+
     def __init__(
-            self,
-            data_dir: str,
-            splits_dir: str,
-            batch_size: int,
-            subdivisions: int,
-            data_internal_scale: float,
-            load_data_to_ram: bool = False,
-            vmask_thres: float = None,
-            vmask_weight: float = None,
-            fmask_thres: float = None,
-            fmask_weight: float = None):
+        self,
+        data_dir: str,
+        splits_dir: str,
+        batch_size: int,
+        subdivisions: int,
+        data_internal_scale: float,
+        load_data_to_ram: bool = False,
+        vmask_thres: Optional[float] = None,
+        vmask_weight: Optional[float] = None,
+        fmask_thres: Optional[float] = None,
+        fmask_weight: Optional[float] = None,
+    ):
         super().__init__()
 
         # unpack input
@@ -146,35 +176,8 @@ class IcoMeshDataModule(pl.LightningDataModule):
     def test_dataloader(self):
         return None
 
-    @classmethod
-    def add_argparse_args(cls, parent_parser):
-        parser = ArgumentParser(parents=[parent_parser], add_help=False)
-
-        parser.add_argument("--data_dir", default='./', type=str,
-                            help='path to the directory that contains the dataset')
-        parser.add_argument("--splits_dir", default="../examples", type=str,
-                            help='path to the directory that contains the dataset splits (training, validation, test)')
-        parser.add_argument('-b', '--batch_size', default=8, type=int,
-                            help='the batch size')
-
-        parser.add_argument('--load_data_to_ram', action='store_true',
-                            help='load the entire dataset to the RAM for training')
-
-        # params for weighting of vertices/faces (based on dihedral angles of connected edges)
-        parser.add_argument('--vmask_thres', default=None, type=float,
-                            help='the threshold dihedral angle above which vertices get weighted')
-        parser.add_argument('--vmask_weight', default=None, type=float,
-                            help='the factor to use for weighted vertices')
-        parser.add_argument('--fmask_thres', default=None, type=float,
-                            help='the threshold dihedral angle above which faces get weighted')
-        parser.add_argument('--fmask_weight', default=None, type=float,
-                            help='the factor to use for weighted faces')
-
-        return parser
-
 
 class IcoMeshPredictionModule(IcoMeshDataModule):
-
     def train_dataloader(self):
         pass
 
