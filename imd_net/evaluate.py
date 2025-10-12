@@ -30,10 +30,10 @@ if __name__ == "__main__":
     parser = ArgumentParser()
 
     # define run specific arguments
-    parser.add_argument("--save_predictions", default=None, type=str,
-                        help='store all predictions as new dataset at given path')
-    parser.add_argument("--save_metrics", default=None, type=str,
-                        help='compute metrics on predictions and save as csv')
+    parser.add_argument(
+        "--save_predictions", default=None, type=str, help="store all predictions as new dataset at given path"
+    )
+    parser.add_argument("--save_metrics", default=None, type=str, help="compute metrics on predictions and save as csv")
 
     # add params from Trainer
     parser = pl.Trainer.add_argparse_args(parser)

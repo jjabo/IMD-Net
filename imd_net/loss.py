@@ -11,7 +11,7 @@ class MeshLoss(nn.Module):
         self.factor_nor = factor_nor
         self.factor_cur = factor_cur
 
-        self.loss_fun_pos = nn.MSELoss(reduction='none')
+        self.loss_fun_pos = nn.MSELoss(reduction="none")
         self.loss_fun_nor = nn.CosineSimilarity(dim=1)
         self.loss_fun_cur = nn.MSELoss()
 
@@ -37,10 +37,10 @@ class MeshLoss(nn.Module):
         loss = self.factor_pos * loss_pos + self.factor_nor * loss_nor + self.factor_cur * loss_cur
 
         loss_log = {
-            'loss_tot': loss.detach(),
-            'loss_pos': loss_pos.detach(),
-            'loss_nor': loss_nor.detach(),
-            'loss_cur': loss_cur.detach(),
+            "loss_tot": loss.detach(),
+            "loss_pos": loss_pos.detach(),
+            "loss_nor": loss_nor.detach(),
+            "loss_cur": loss_cur.detach(),
         }
 
         return loss, loss_log

@@ -1,37 +1,49 @@
+import torch
 import torch.nn as nn
 from copy import deepcopy
 from icocnn import IcoConvS2R, IcoConvR2R, IcoBatchNorm, IcoUpsampleR2R
 
 
 class IcoDownR2R(nn.Module):
-    def __init__(self, in_features, out_features, subdivisions, bias, corner_mode):
-        super().__init__()
+    def __init__(self, in_features: int, out_features: int, subdivisions: int, bias: bool, corner_mode: str):
+        super(IcoDownR2R, self).__init__()
 
-        self.down = IcoConvR2R(in_features=in_features,
-                               out_features=out_features,
-                               stride=2,
-                               bias=bias,
-                               subdivisions=subdivisions,
-                               corner_mode=corner_mode)
+        self.down = IcoConvR2R(
+            in_features=in_features,
+            out_features=out_features,
+            stride=2,
+            bias=bias,
+            subdivisions=subdivisions,
+            corner_mode=corner_mode,
+        )
         self.batchnorm = IcoBatchNorm(out_features)
         self.relu = nn.ReLU(inplace=False)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.relu(self.batchnorm(self.down(x)))
 
 
 class IcoUpResnetR2R(nn.Module):
-    def __init__(self, in_features_upsampling, in_features, out_features, bias=True, subdivisions=0,
-                 corner_mode='zeros'):
-        super().__init__()
+    def __init__(
+        self,
+        in_features_upsampling: int,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        subdivisions: int = 0,
+        corner_mode: str = "zeros",
+    ):
+        super(IcoUpResnetR2R, self).__init__()
         if in_features_upsampling != in_features:
-            self.bottleneck = IcoConvR2R(in_features=in_features_upsampling,
-                                         out_features=in_features,
-                                         stride=1,
-                                         bias=bias,
-                                         subdivisions=subdivisions,
-                                         kernel_size=1,
-                                         corner_mode=corner_mode)
+            self.bottleneck = IcoConvR2R(
+                in_features=in_features_upsampling,
+                out_features=in_features,
+                stride=1,
+                bias=bias,
+                subdivisions=subdivisions,
+                kernel_size=1,
+                corner_mode=corner_mode,
+            )
         else:
             self.bottleneck = nn.Identity()
 
@@ -40,7 +52,7 @@ class IcoUpResnetR2R(nn.Module):
         self.batchnorm = IcoBatchNorm(out_features)
         self.relu = nn.ReLU(inplace=False)
 
-    def forward(self, x1, x2):
+    def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
         x1 = self.bottleneck(x1)
         x1 = self.up(x1)
         x = x1 + x2
@@ -51,7 +63,7 @@ class IcoUpResnetR2R(nn.Module):
 
 
 class ConfigurableIcoResUNet(nn.Module):
-    def __init__(self, corner_mode, subdivisions, net_depth, init_features, factor):
+    def __init__(self, corner_mode: str, subdivisions: int, net_depth: int, init_features: int, factor: float):
         super().__init__()
 
         # compute feature dimensions for encoder
@@ -59,7 +71,7 @@ class ConfigurableIcoResUNet(nn.Module):
         down_features_out = []
         up_features_out = []
         for i in range(net_depth):
-            down_features_in.append(int(init_features * (factor ** i)))
+            down_features_in.append(int(init_features * (factor**i)))
             down_features_out.append(int(init_features * (factor ** (i + 1))))
             up_features_out.append(int(init_features * (factor ** (i - 1))))
 
@@ -70,12 +82,14 @@ class ConfigurableIcoResUNet(nn.Module):
 
         # create initial S2R layer
         self.S2R = nn.Sequential(
-            IcoConvS2R(in_features=3,
-                       out_features=int(init_features),
-                       stride=1,
-                       bias=True,
-                       subdivisions=subdivisions,
-                       corner_mode=corner_mode),
+            IcoConvS2R(
+                in_features=3,
+                out_features=int(init_features),
+                stride=1,
+                bias=True,
+                subdivisions=subdivisions,
+                corner_mode=corner_mode,
+            ),
             IcoBatchNorm(int(init_features)),
             nn.ReLU(inplace=False),
         )
@@ -98,22 +112,20 @@ class ConfigurableIcoResUNet(nn.Module):
         self.up = nn.ModuleList()
         for i in range(net_depth - 1, -1, -1):
             self.up.append(
-                IcoUpResnetR2R(in_features_upsampling=up_features_upsampling_in[i],
-                               in_features=up_features_in[i],
-                               out_features=up_features_out[i],
-                               bias=True,
-                               subdivisions=subdivisions - (i + 1),
-                               corner_mode=corner_mode
-                               )
+                IcoUpResnetR2R(
+                    in_features_upsampling=up_features_upsampling_in[i],
+                    in_features=up_features_in[i],
+                    out_features=up_features_out[i],
+                    bias=True,
+                    subdivisions=subdivisions - (i + 1),
+                    corner_mode=corner_mode,
+                )
             )
 
         # create final bottleneck layer
-        self.conv = nn.Conv2d(in_channels=int(init_features) * 6,
-                              out_channels=3,
-                              kernel_size=(1, 1)
-                              )
+        self.conv = nn.Conv2d(in_channels=int(init_features) * 6, out_channels=3, kernel_size=(1, 1))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # initial S2R
         down_outputs = [self.S2R(x)]
 

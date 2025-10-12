@@ -3,8 +3,8 @@ import torch
 import math
 
 
-def fill_quad_recursively(vert_mat, r_min, r_max, c_min, c_max):
-    if r_min >= r_max-1 or c_min >= c_max-1:
+def fill_quad_recursively(vert_mat: np.ndarray, r_min: int, r_max: int, c_min: int, c_max: int) -> np.ndarray:
+    if r_min >= r_max - 1 or c_min >= c_max - 1:
         return vert_mat
 
     r_center = np.ceil((r_min + r_max) / 2).astype(int)
@@ -12,23 +12,25 @@ def fill_quad_recursively(vert_mat, r_min, r_max, c_min, c_max):
 
     # diagonal edge
     vert_mat[r_center, c_center, :] = (vert_mat[r_min, c_max, :] + vert_mat[r_max, c_min, :]) / 2
-    vert_mat[r_center, c_center, :] = vert_mat[r_center, c_center, :] / np.sqrt(np.sum(vert_mat[r_center, c_center, :]**2))
+    vert_mat[r_center, c_center, :] = vert_mat[r_center, c_center, :] / np.sqrt(
+        np.sum(vert_mat[r_center, c_center, :] ** 2)
+    )
 
     # left edge
     vert_mat[r_center, c_min, :] = (vert_mat[r_min, c_min, :] + vert_mat[r_max, c_min, :]) / 2
-    vert_mat[r_center, c_min, :] = vert_mat[r_center, c_min, :] / np.sqrt(np.sum(vert_mat[r_center, c_min, :]**2))
+    vert_mat[r_center, c_min, :] = vert_mat[r_center, c_min, :] / np.sqrt(np.sum(vert_mat[r_center, c_min, :] ** 2))
 
     # right edge
-    vert_mat[r_center, c_max, :] = (vert_mat[r_min, c_max, :] + vert_mat[r_max, c_max,:]) / 2
-    vert_mat[r_center, c_max, :] = vert_mat[r_center, c_max, :] / np.sqrt(np.sum(vert_mat[r_center, c_max, :]**2))
+    vert_mat[r_center, c_max, :] = (vert_mat[r_min, c_max, :] + vert_mat[r_max, c_max, :]) / 2
+    vert_mat[r_center, c_max, :] = vert_mat[r_center, c_max, :] / np.sqrt(np.sum(vert_mat[r_center, c_max, :] ** 2))
 
     # top edge
     vert_mat[r_min, c_center, :] = (vert_mat[r_min, c_min, :] + vert_mat[r_min, c_max, :]) / 2
-    vert_mat[r_min, c_center, :] = vert_mat[r_min, c_center, :] / np.sqrt(np.sum(vert_mat[r_min, c_center, :]**2))
+    vert_mat[r_min, c_center, :] = vert_mat[r_min, c_center, :] / np.sqrt(np.sum(vert_mat[r_min, c_center, :] ** 2))
 
     # bottom edge
     vert_mat[r_max, c_center, :] = (vert_mat[r_max, c_min, :] + vert_mat[r_max, c_max, :]) / 2
-    vert_mat[r_max, c_center, :] = vert_mat[r_max, c_center, :] / np.sqrt(np.sum(vert_mat[r_max, c_center, :]**2))
+    vert_mat[r_max, c_center, :] = vert_mat[r_max, c_center, :] / np.sqrt(np.sum(vert_mat[r_max, c_center, :] ** 2))
 
     # top left quad
     vert_mat = fill_quad_recursively(vert_mat, r_min, r_center, c_min, c_center)
@@ -45,23 +47,34 @@ def fill_quad_recursively(vert_mat, r_min, r_max, c_min, c_max):
     return vert_mat
 
 
-def get_icosahedral_grid(subdivisions):
-
+def get_icosahedral_grid(subdivisions: int):
     # create vertices
     t = (1.0 + np.sqrt(5.0)) / 2.0
-    v = np.array([
-        [-1,  t,  0], [1,  t,  0], [-1, -t,  0], [1, -t,  0],
-        [0, -1,  t], [0,  1,  t],  [0, -1, -t],  [0,  1, -t],
-        [t,  0, -1], [t,  0,  1], [-t,  0, -1], [-t,  0,  1]])
+    v = np.array(
+        [
+            [-1, t, 0],
+            [1, t, 0],
+            [-1, -t, 0],
+            [1, -t, 0],
+            [0, -1, t],
+            [0, 1, t],
+            [0, -1, -t],
+            [0, 1, -t],
+            [t, 0, -1],
+            [t, 0, 1],
+            [-t, 0, -1],
+            [-t, 0, 1],
+        ]
+    )
     v = v / np.sqrt(np.sum(v**2, 1))[np.newaxis].T
 
     # rotate v4 around x axis so it is at [0, 0, 1]
     angle = np.arctan2(v[4, 1], v[4, 2])
-    rx = np.array([[1, 0, 0], [0, np.cos(angle), - np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
+    rx = np.array([[1, 0, 0], [0, np.cos(angle), -np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
     v = rx.dot(v.T).T
 
     # zero out values very close to zero
-    tol = 1.e-10
+    tol = 1.0e-10
     v[np.abs(v) < tol] = 0
 
     # reorder vertices for easier map and face creation
@@ -69,17 +82,34 @@ def get_icosahedral_grid(subdivisions):
     v = v[map_, :]
 
     # create base faces
-    f = np.array([
-        [0, 1, 2], [1,  6, 2], [2,  6,  7], [ 6, 11,  7],   # map 0
-        [0, 2, 3], [2,  7, 3], [3,  7,  8], [ 7, 11,  8],   # map 1
-        [0, 3, 4], [3,  8, 4], [4,  8,  9], [ 8, 11,  9],   # map 2
-        [0, 4, 5], [4,  9, 5], [5,  9, 10], [ 9, 11, 10],   # map 3
-        [0, 5, 1], [5, 10, 1], [1, 10,  6], [10, 11,  6],   # map 4
-    ])
+    f = np.array(
+        [
+            [0, 1, 2],
+            [1, 6, 2],
+            [2, 6, 7],
+            [6, 11, 7],  # map 0
+            [0, 2, 3],
+            [2, 7, 3],
+            [3, 7, 8],
+            [7, 11, 8],  # map 1
+            [0, 3, 4],
+            [3, 8, 4],
+            [4, 8, 9],
+            [8, 11, 9],  # map 2
+            [0, 4, 5],
+            [4, 9, 5],
+            [5, 9, 10],
+            [9, 11, 10],  # map 3
+            [0, 5, 1],
+            [5, 10, 1],
+            [1, 10, 6],
+            [10, 11, 6],  # map 4
+        ]
+    )
 
     # create subdivisons and planar mapping
     num_vertical_vertices = 2**subdivisions + 1
-    num_horizontal_vertices = 2**(subdivisions + 1) + 1
+    num_horizontal_vertices = 2 ** (subdivisions + 1) + 1
     vert_mat = np.zeros([5, num_vertical_vertices, num_horizontal_vertices, 3])
     planar_mapping_out = np.zeros([5, num_vertical_vertices, num_horizontal_vertices]).astype(int)
 
@@ -89,28 +119,32 @@ def get_icosahedral_grid(subdivisions):
         # left quad
         # fill corners of quad
         vert_mat[i, 0, 0, :] = v[f[f_idx, 0], :]
-        vert_mat[i, num_vertical_vertices-1, 0, :] = v[f[f_idx, 1], :]
-        vert_mat[i, 0, num_vertical_vertices-1, :] = v[f[f_idx, 2], :]
+        vert_mat[i, num_vertical_vertices - 1, 0, :] = v[f[f_idx, 1], :]
+        vert_mat[i, 0, num_vertical_vertices - 1, :] = v[f[f_idx, 2], :]
 
         f_idx = f_idx + 1
-        vert_mat[i, num_vertical_vertices-1, num_vertical_vertices-1, :] = v[f[f_idx, 1], :]
+        vert_mat[i, num_vertical_vertices - 1, num_vertical_vertices - 1, :] = v[f[f_idx, 1], :]
 
         # interpolate other values of quad
-        vert_mat[i, :, :, :] = fill_quad_recursively(vert_mat[i, :, :, :], 0, num_vertical_vertices - 1, 0, num_vertical_vertices - 1)
+        vert_mat[i, :, :, :] = fill_quad_recursively(
+            vert_mat[i, :, :, :], 0, num_vertical_vertices - 1, 0, num_vertical_vertices - 1
+        )
 
         # right quad
         f_idx = f_idx + 1
 
         # fill corners of quad
-        vert_mat[i, 0, num_vertical_vertices-1, :] = v[f[f_idx, 0], :]
-        vert_mat[i, num_vertical_vertices-1, num_vertical_vertices-1, :] = v[f[f_idx, 1], :]
+        vert_mat[i, 0, num_vertical_vertices - 1, :] = v[f[f_idx, 0], :]
+        vert_mat[i, num_vertical_vertices - 1, num_vertical_vertices - 1, :] = v[f[f_idx, 1], :]
         vert_mat[i, 0, -1, :] = v[f[f_idx, 2], :]
 
         f_idx = f_idx + 1
         vert_mat[i, -1, -1, :] = v[f[f_idx, 1], :]
 
         # interpolate other values of quad
-        vert_mat[i, :, :, :] = fill_quad_recursively(vert_mat[i, :, :, :], 0, num_vertical_vertices - 1, num_vertical_vertices - 1, num_horizontal_vertices - 1)
+        vert_mat[i, :, :, :] = fill_quad_recursively(
+            vert_mat[i, :, :, :], 0, num_vertical_vertices - 1, num_vertical_vertices - 1, num_horizontal_vertices - 1
+        )
 
     # flip map dimension, so map 4 is top map when ordering on plane
     vert_mat = np.flip(vert_mat, 0)
@@ -118,16 +152,15 @@ def get_icosahedral_grid(subdivisions):
     # extract vertices and planar mapping
     v_out = np.reshape(vert_mat[:, 1:, 0:-1, :], [-1, 3])
     ind = np.arange((num_vertical_vertices - 1) * 5 * (num_horizontal_vertices - 1))
-    planar_mapping_out[:, 1:, 0:-1] = ind.reshape(5, num_vertical_vertices-1, num_horizontal_vertices-1)
+    planar_mapping_out[:, 1:, 0:-1] = ind.reshape(5, num_vertical_vertices - 1, num_horizontal_vertices - 1)
 
     # add vertices at north/south pole
     v_out = np.append(v_out, vert_mat[0, 0, 0, :][np.newaxis], 0)
-    planar_mapping_out[:, 0, 0] = v_out.shape[0]-1
+    planar_mapping_out[:, 0, 0] = v_out.shape[0] - 1
     v_out = np.append(v_out, vert_mat[0, -1, -1, :][np.newaxis], 0)
-    planar_mapping_out[:, -1, -1] = v_out.shape[0]-1
+    planar_mapping_out[:, -1, -1] = v_out.shape[0] - 1
 
     # fill in boundaries of the planar mapping
-    # next_idx = [1, 2, 3, 4, 0]
     prev_idx = [4, 0, 1, 2, 3]
     # top left
     planar_mapping_out[:, 0, 1:num_vertical_vertices] = planar_mapping_out[prev_idx, 1:num_vertical_vertices, 0]
@@ -142,14 +175,12 @@ def get_icosahedral_grid(subdivisions):
     v_idx_3 = planar_mapping_out[:, 0:-1, 1:].flatten()
     v_idx_4 = planar_mapping_out[:, 1:, 1:].flatten()
 
-    f_out = np.concatenate((
-        np.stack((v_idx_1, v_idx_2, v_idx_3), 1),
-        np.stack((v_idx_2, v_idx_4, v_idx_3), 1)), 0)
+    f_out = np.concatenate((np.stack((v_idx_1, v_idx_2, v_idx_3), 1), np.stack((v_idx_2, v_idx_4, v_idx_3), 1)), 0)
 
     return v_out, f_out
 
 
-def get_ico_faces(subdivisions):
+def get_ico_faces(subdivisions: int):
     assert subdivisions >= 0
 
     # get faces and mapping
@@ -158,8 +189,7 @@ def get_ico_faces(subdivisions):
     return f
 
 
-def get_edges_from_faces(f):
-
+def get_edges_from_faces(f: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # construct edges from faces
     edge_vertices_nonunique = np.vstack([f[:, :2], f[:, 1:3], f[:, [2, 0]]])
     edge_vertices, reverse_indices = np.unique(np.sort(edge_vertices_nonunique), axis=0, return_inverse=True)
@@ -172,17 +202,12 @@ def get_edges_from_faces(f):
     return edge_vertices, edge_faces
 
 
-# def ico_create_polevertices(vertices_as_map: torch.Tensor):
-#     # compute pole vertices
-#     v_tmp = vertices_as_map.view(vertices_as_map.shape[0], vertices_as_map.shape[1], -1)
-#     v_poles = torch.mean(inputs[:, :, self.corner_src_y, self.corner_src_x], -1)
-#     v = torch.cat((v_tmp, v_poles), dim=2).transpose(1, 2).contiguous()
-
-
-def imgbatch_to_icomesh(data, highlight_boundaries=False):
+def imgbatch_to_icomesh(
+    data: np.ndarray, highlight_boundaries: bool = False
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     # assert if image dimensions wrong
     assert data.dim() == 4
-    assert np.log2(data.shape[2]/5) + 1 == np.log2(data.shape[3])
+    assert np.log2(data.shape[2] / 5) + 1 == np.log2(data.shape[3])
     assert data.shape[1] == 1 or data.shape[1] == 3
 
     # create corresponding mesh
@@ -199,13 +224,13 @@ def imgbatch_to_icomesh(data, highlight_boundaries=False):
             boundary_map = torch.zeros([data.shape[0], v.shape[0], data.shape[1]])
 
             # set red channel to 255 for boundary
-            boundary_indices = torch.zeros(2**subdivisions * 5, 2**(subdivisions+1), dtype=torch.long)
-            boundary_indices[:, [0, 2 ** subdivisions]] = 1
+            boundary_indices = torch.zeros(2**subdivisions * 5, 2 ** (subdivisions + 1), dtype=torch.long)
+            boundary_indices[:, [0, 2**subdivisions]] = 1
             row_indices = torch.arange(1, 6) * (2**subdivisions) - 1
             boundary_indices[row_indices.long(), :] = 1
             boundary_indices_flat = torch.nonzero(boundary_indices.flatten())
 
-            boundary_map[:, boundary_indices_flat, :] = 255.
+            boundary_map[:, boundary_indices_flat, :] = 255.0
 
             v_colors = torch.cat((boundary_map, v_colors, torch.zeros([data.shape[0], v.shape[0], data.shape[1]])), 2)
         else:
@@ -216,26 +241,9 @@ def imgbatch_to_icomesh(data, highlight_boundaries=False):
     return v, f, v_colors
 
 
-#
-# def get_face_normals(data, subdivisions):
-#
-#     # get ico faces
-#     f_ico = get_ico_faces(subdivisions)
-#     f_ico = torch.from_numpy(f_ico)
-#
-#     # compute face normals
-#     dv = data.view(data.shape[0], data.shape[1], -1)
-#     f_normals = data.view
-#
-#     pass
-#
-#
-#
-# def get_vertex_normals(data, f, f2v_map, subdivisions):
-#     pass
-
-
-def get_mesh_from_icomapping(data, targets, max_distance=None, interpolate_poles=True):
+def get_mesh_from_icomapping(
+    data: torch.Tensor, targets: torch.Tensor, max_distance: torch.Tensor | None = None, interpolate_poles: bool = True
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     with torch.no_grad():
         # assert if image dimensions wrong
         assert data.dim() == 4
@@ -263,7 +271,7 @@ def get_mesh_from_icomapping(data, targets, max_distance=None, interpolate_poles
 
         if interpolate_poles:
             # interpolate north and southpole vertices
-            base_height = 2 ** subdivisions
+            base_height = 2**subdivisions
             top_corner_src_y = torch.arange(5) * base_height
             top_corner_src_x = 0
             bottom_corner_src_y = torch.arange(1, 6) * base_height - 1
@@ -274,14 +282,14 @@ def get_mesh_from_icomapping(data, targets, max_distance=None, interpolate_poles
             v_colors[:, -2, 0] = torch.mean(distance_map[:, top_corner_src_y, top_corner_src_x], -1)
             v_colors[:, -1, 0] = torch.mean(distance_map[:, bottom_corner_src_y, bottom_corner_src_x], -1)
 
-        v_colors *= 255.
+        v_colors *= 255.0
 
         return v, f, v_colors
 
 
-def icomap_getPolesNeighborIndices(subdivisions: int):
+def icomap_getPolesNeighborIndices(subdivisions: int) -> tuple[torch.Tensor, torch.Tensor]:
     # index buffers for icosahedral corner averaging
-    base_height = 2 ** subdivisions
+    base_height = 2**subdivisions
     top_corner_src_y = torch.arange(5) * base_height
     top_corner_src_x = torch.tensor([0])
     bottom_corner_src_y = torch.arange(1, 6) * base_height - 1
@@ -291,44 +299,12 @@ def icomap_getPolesNeighborIndices(subdivisions: int):
     return corner_src_x, corner_src_y
 
 
-def icomap_2_vertices(icomap: torch.Tensor, corner_src_x: torch.Tensor, corner_src_y: torch.Tensor):
-    v = torch.cat((
-        icomap.view(icomap.shape[0], icomap.shape[1], -1).transpose(1, 2),
-        torch.mean(icomap[:, :, corner_src_y, corner_src_x], dim=-1).transpose(1, 2)), dim=1)
+def icomap_2_vertices(icomap: torch.Tensor, corner_src_x: torch.Tensor, corner_src_y: torch.Tensor) -> torch.Tensor:
+    v = torch.cat(
+        (
+            icomap.view(icomap.shape[0], icomap.shape[1], -1).transpose(1, 2),
+            torch.mean(icomap[:, :, corner_src_y, corner_src_x], dim=-1).transpose(1, 2),
+        ),
+        dim=1,
+    )
     return v
-
-
-    #disp_icomesh(v[0], f, v_colors[0], "name")
-
-#
-#
-# import plotly.graph_objects as go
-# import plotly.io as pio
-# pio.renderers.default = 'browser'
-#
-#
-# def disp_icomesh(v, f, v_colors, name):
-#     #v_c_normalized = v_colors / 255.
-#     fig = go.Figure(data=[go.Mesh3d(
-#         x=v[:, 0],
-#         y=v[:, 1],
-#         z=v[:, 2],
-#         i=f[:, 0],
-#         j=f[:, 1],
-#         k=f[:, 2],
-#         flatshading=True,
-#        vertexcolor=v_colors
-#     )])
-#
-#     fig.update_layout(
-#         title=name,
-#         autosize=True,
-#         margin=go.layout.Margin(
-#             l=5,
-#             r=5,
-#             b=5,
-#             t=5,
-#             pad=4
-#         )
-#     )
-#     fig.show()

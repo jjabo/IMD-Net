@@ -6,7 +6,9 @@ from torchmetrics import Metric
 from .mesh import compute_face_normals
 
 
-def facenormals_angles(v: torch.Tensor, v_gt: torch.Tensor, f: torch.Tensor, return_valid_mask=False):
+def facenormals_angles(
+    v: torch.Tensor, v_gt: torch.Tensor, f: torch.Tensor, return_valid_mask: bool = False
+) -> torch.Tensor:
     # compute face angles of both meshes
     fnormals = compute_face_normals(v, f)
 
@@ -38,7 +40,9 @@ class StatsMeterLazy(Metric):
         self.vals = torch.cat((self.vals, vals))
 
     def compute(self):
-        return {'max': self.vals.max().detach().item(),
-                'min': self.vals.min().detach().item(),
-                'mean': self.vals.mean().detach().item(),
-                'std': self.vals.std().detach().item()}
+        return {
+            "max": self.vals.max().detach().item(),
+            "min": self.vals.min().detach().item(),
+            "mean": self.vals.mean().detach().item(),
+            "std": self.vals.std().detach().item(),
+        }

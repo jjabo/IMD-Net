@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
+from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 
 from module import IcoDenoiseNet, CustomModelCheckpoint
 from data_loader import IcoMeshDataModule, IcoMeshPredictionModule
@@ -22,10 +22,10 @@ def main(args):
 
     # define callbacks for checkpoints and hparams logging
     logging_callback = CustomModelCheckpoint(
-        monitor='val_loss',
-        hp_metrics=['val_loss', 'dist', 'angdiff'],
-        filename='best',
-        mode='min',
+        monitor="val_loss",
+        hp_metrics=["val_loss", "dist", "angdiff"],
+        filename="best",
+        mode="min",
     )
 
     # log mesh callback
@@ -35,8 +35,13 @@ def main(args):
     logger = TensorBoardLogger(save_dir=args.log_dir, log_graph=True, default_hp_metric=False)
 
     # create trainer
-    trainer = pl.Trainer.from_argparse_args(args, log_every_n_steps=2, num_sanity_val_steps=-1,
-                                            callbacks=[logging_callback, log_mesh_callback], logger=logger)
+    trainer = pl.Trainer.from_argparse_args(
+        args,
+        log_every_n_steps=2,
+        num_sanity_val_steps=-1,
+        callbacks=[logging_callback, log_mesh_callback],
+        logger=logger,
+    )
 
     # train
     trainer.fit(model, datamodule=dm)
@@ -49,8 +54,9 @@ def main(args):
         save_predictions_callback = SavePredictionsCallback(save_dir=args.save_predictions)
 
         # create trainer
-        trainer = pl.Trainer.from_argparse_args(args, logger=False, checkpoint_callback=False,
-                                                callbacks=[save_predictions_callback])
+        trainer = pl.Trainer.from_argparse_args(
+            args, logger=False, checkpoint_callback=False, callbacks=[save_predictions_callback]
+        )
 
         # test
         trainer.test(model, datamodule=dm)
@@ -60,10 +66,12 @@ if __name__ == "__main__":
     parser = ArgumentParser()
 
     # define run specific arguments
-    parser.add_argument("--save_predictions", default=None, type=str,
-                        help='store all predictions as new dataset at given path')
-    parser.add_argument("--load_weights_only", action='store_true',
-                        help='only load the weights from the given checkpoint')
+    parser.add_argument(
+        "--save_predictions", default=None, type=str, help="store all predictions as new dataset at given path"
+    )
+    parser.add_argument(
+        "--load_weights_only", action="store_true", help="only load the weights from the given checkpoint"
+    )
 
     # add params from Trainer
     parser = pl.Trainer.add_argparse_args(parser)

@@ -7,19 +7,19 @@ from .metrics import facenormals_angles, p2p_dist, StatsMeterLazy
 
 
 class SavePredictionsCallback(Callback):
-    def __init__(self, save_dir):
+    def __init__(self, save_dir: str):
         super().__init__()
         self.save_dir = Path(save_dir)
         self.final_save_dir = None
         self.flist = None
 
-        assert self.save_dir.exists() and self.save_dir.is_dir(), '{} is not a dir'.format(self.save_dir)
+        assert self.save_dir.exists() and self.save_dir.is_dir(), "{} is not a dir".format(self.save_dir)
 
     def on_test_epoch_start(self, trainer, pl_module):
         self.flist = pl_module.test_dataloader().dataset.flist
         folder_name = self.flist[0].parent.name
         self.final_save_dir = self.save_dir / "{}_IDN_npz".format(folder_name)
-        assert not self.final_save_dir.exists(), '{} already exists'.format(self.final_save_dir)
+        assert not self.final_save_dir.exists(), "{} already exists".format(self.final_save_dir)
         self.final_save_dir.mkdir()
 
     def on_test_batch_end(
@@ -52,16 +52,22 @@ class SavePredictionsCallback(Callback):
             data_mean = np.load(f_name)["data_mean"]
             data_scale = np.load(f_name)["data_scale"]
 
-            np.savez(f_out_absolute, data=v[i].transpose(), targets=v_target[i].transpose(),
-                     v_max_dangles=v_mask, f_max_dangles=f_mask,
-                     data_mean=data_mean, data_scale=data_scale)
+            np.savez(
+                f_out_absolute,
+                data=v[i].transpose(),
+                targets=v_target[i].transpose(),
+                v_max_dangles=v_mask,
+                f_max_dangles=f_mask,
+                data_mean=data_mean,
+                data_scale=data_scale,
+            )
 
 
 class SaveMetricsCallback(Callback):
-    def __init__(self, save_file):
+    def __init__(self, save_file: str):
         super().__init__()
         self.save_file = Path(save_file)
-        assert not self.save_file.exists(), '{} already exists'.format(save_file)
+        assert not self.save_file.exists(), "{} already exists".format(save_file)
 
         self.flist = None
         self.header = "name,dist_mean,dist_max,dist_min,dist_std,angdiff_mean,angdiff_max,angdiff_min,angdiff_std"
@@ -113,14 +119,24 @@ class SaveMetricsCallback(Callback):
         self.angdiff_std = np.concatenate((self.angdiff_std, angdiff.std(-1)))
 
     def on_test_epoch_end(self, trainer, pl_module):
-        result = np.column_stack((self.fnames,
-                                  self.dist_mean, self.dist_max, self.dist_min, self.dist_std,
-                                  self.angdiff_mean, self.angdiff_max, self.angdiff_min, self.angdiff_std))
+        result = np.column_stack(
+            (
+                self.fnames,
+                self.dist_mean,
+                self.dist_max,
+                self.dist_min,
+                self.dist_std,
+                self.angdiff_mean,
+                self.angdiff_max,
+                self.angdiff_min,
+                self.angdiff_std,
+            )
+        )
         np.savetxt(self.save_file, result, delimiter=",", fmt="%s", header=self.header)
 
 
 class LogMeshCallback(Callback):
-    def __init__(self, log_mesh_epoch, log_mesh_samples):
+    def __init__(self, log_mesh_epoch: int, log_mesh_samples: List[int]):
         self.log_mesh_epoch = log_mesh_epoch
         self.log_mesh_samples = log_mesh_samples
 
@@ -137,9 +153,13 @@ class LogMeshCallback(Callback):
         color_p2pdist = ((color_p2pdist.clamp(max=max_distance) / max_distance) * 255).unsqueeze(-1)
         color_p2pdist = torch.cat((color_p2pdist, torch.zeros_like(color_p2pdist).expand(-1, -1, 2)), dim=-1)
 
-        pl_module.logger.experiment.add_mesh("examples", vertices=v, colors=color_p2pdist,
-                                             faces=pl_module.faces.unsqueeze(0).expand([v.shape[0], -1, -1]),
-                                             global_step=global_step)
+        pl_module.logger.experiment.add_mesh(
+            "examples",
+            vertices=v,
+            colors=color_p2pdist,
+            faces=pl_module.faces.unsqueeze(0).expand([v.shape[0], -1, -1]),
+            global_step=global_step,
+        )
 
     def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
         if self.base_p2p_metric:
@@ -167,7 +187,8 @@ class LogMeshCallback(Callback):
             v_input = pl_module.reverse_internal_scale(v_input)
             self.base_p2p_metric(p2p_dist(v_input, v_target).flatten())
             self.base_angular_metric(
-                facenormals_angles(v_input, v_target, pl_module.faces, return_valid_mask=True).flatten())
+                facenormals_angles(v_input, v_target, pl_module.faces, return_valid_mask=True).flatten()
+            )
 
             # store the meshes in this callback for later processing
             if batch_idx == 0:
@@ -177,7 +198,10 @@ class LogMeshCallback(Callback):
     def on_validation_epoch_end(self, trainer, pl_module):
         if self.base_stats is None:
             # log base metrics
-            self.base_stats = {'dist': self.base_p2p_metric.compute(), 'angle': self.base_angular_metric.compute()}
+            self.base_stats = {
+                "dist": self.base_p2p_metric.compute(),
+                "angle": self.base_angular_metric.compute(),
+            }
             # free memory
             self.base_p2p_metric = None
             self.base_angular_metric = None
@@ -193,5 +217,10 @@ class LogMeshCallback(Callback):
             v_pred = pl_module.icomap2vertices(v_pred)
             v_pred = pl_module.reverse_internal_scale(v_pred)
 
-            self.log_mesh(v_pred, v_target, self.base_stats['dist']['mean'] + 2 * self.base_stats['dist']['std'],
-                          pl_module.current_epoch, pl_module)
+            self.log_mesh(
+                v_pred,
+                v_target,
+                self.base_stats["dist"]["mean"] + 2 * self.base_stats["dist"]["std"],
+                pl_module.current_epoch,
+                pl_module,
+            )

@@ -5,10 +5,19 @@ import torch.nn.functional as F
 
 
 class _IcoBase(nn.Module):
-    def __init__(self, in_features, out_features, in_subdivisions, out_subdivisions, in_feature_depth, out_feature_depth, corner_mode):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        in_subdivisions: int,
+        out_subdivisions: int,
+        in_feature_depth: int,
+        out_feature_depth: int,
+        corner_mode: str,
+    ):
         super(_IcoBase, self).__init__()
 
-        assert corner_mode == 'zeros' or (corner_mode == 'average' and out_subdivisions > 0)
+        assert corner_mode == "zeros" or (corner_mode == "average" and out_subdivisions > 0)
 
         self.in_features = in_features
         self.in_feature_depth = in_feature_depth
@@ -20,7 +29,7 @@ class _IcoBase(nn.Module):
         self.in_subdivisions = in_subdivisions
         self.out_subdivisions = out_subdivisions
 
-        self.base_height_in = 2 ** self.in_subdivisions
+        self.base_height_in = 2**self.in_subdivisions
         self.height_in = self.base_height_in * 5
         self.width_in = self.base_height_in * 2
 
@@ -47,12 +56,12 @@ class _IcoBase(nn.Module):
         # corner handling in padding and output
         corner_target_y = (torch.arange(1, 6)[:, None] * self.base_height_out - 1).repeat(2, 1)
         corner_target_x = torch.tensor([0] * 5 + [self.base_height_out] * 5)[:, None]
-        self.register_buffer('corner_target_y', corner_target_y)
-        self.register_buffer('corner_target_x', corner_target_x)
+        self.register_buffer("corner_target_y", corner_target_y)
+        self.register_buffer("corner_target_x", corner_target_x)
 
-        if self.corner_mode == 'zeros':
+        if self.corner_mode == "zeros":
             self.outcorner_handle = self.set_outcorners_zero
-        if self.corner_mode == 'average':
+        if self.corner_mode == "average":
             # corner averaging
             # pixel top center
             y_tc = corner_target_y - 1
@@ -80,8 +89,8 @@ class _IcoBase(nn.Module):
 
             corner_src_y = torch.cat((y_tc, y_tr, y_r, y_bl, y_l), 1)
             corner_src_x = torch.cat((x_tc, x_tr, x_r, x_bl, x_l), 1)
-            self.register_buffer('corner_src_y', corner_src_y)
-            self.register_buffer('corner_src_x', corner_src_x)
+            self.register_buffer("corner_src_y", corner_src_y)
+            self.register_buffer("corner_src_x", corner_src_x)
 
             self.outcorner_handle = self.set_outcorners_average
 
@@ -89,15 +98,15 @@ class _IcoBase(nn.Module):
         # channel shifting
         if self.in_feature_depth == 6:
             ch_shift_up = torch.arange(self.in_channels).view(-1, 6).roll(-1, 1).view(-1, 1)
-            self.register_buffer('ch_shift_up', ch_shift_up)
+            self.register_buffer("ch_shift_up", ch_shift_up)
             ch_shift_down = torch.arange(self.in_channels).view(-1, 6).roll(1, 1).view(-1, 1)
-            self.register_buffer('ch_shift_down', ch_shift_down)
+            self.register_buffer("ch_shift_down", ch_shift_down)
 
         # length of padding strips
         pad_len_long = self.base_height_in
         pad_len_short = pad_len_long - 1
         pad_len_variable = pad_len_long
-        if self.corner_mode == 'zeros':
+        if self.corner_mode == "zeros":
             pad_len_variable = pad_len_short
 
         # padding indices
@@ -124,24 +133,32 @@ class _IcoBase(nn.Module):
             # top left padding
             padding_ch_up_target_y += [i * self.padded_base_height_in] * pad_len_variable
             padding_ch_up_target_x += list(range(2, 2 + pad_len_variable))
-            padding_ch_up_src_y += list(range(prev_map2[i] * self.base_height_in, prev_map2[i] * self.base_height_in + pad_len_variable))
+            padding_ch_up_src_y += list(
+                range(prev_map2[i] * self.base_height_in, prev_map2[i] * self.base_height_in + pad_len_variable)
+            )
             padding_ch_up_src_x += [0] * pad_len_variable
 
             # bottom right padding
             padding_ch_up_target_y += [(i + 1) * self.padded_base_height_in - 1] * pad_len_long
             padding_ch_up_target_x += list(range(self.padded_width_half_in, self.padded_width_half_in + pad_len_long))
-            padding_ch_up_src_y += list(range(next_map2[i] * self.base_height_in, next_map2[i] * self.base_height_in + pad_len_long))
+            padding_ch_up_src_y += list(
+                range(next_map2[i] * self.base_height_in, next_map2[i] * self.base_height_in + pad_len_long)
+            )
             padding_ch_up_src_x += [-1] * pad_len_long
 
             # channel shift down padding
             # right padding
-            padding_ch_down_target_y += list(range(i * self.padded_base_height_in + 1, i * self.padded_base_height_in + 1 + pad_len_short))
+            padding_ch_down_target_y += list(
+                range(i * self.padded_base_height_in + 1, i * self.padded_base_height_in + 1 + pad_len_short)
+            )
             padding_ch_down_target_x += [-1] * pad_len_short
             padding_ch_down_src_y += [(prev_map2[i] + 1) * self.base_height_in - 1] * pad_len_short
             padding_ch_down_src_x += list(range(self.base_height_in + 1, self.base_height_in + 1 + pad_len_short))
 
             # left padding
-            padding_ch_down_target_y += list(range(i * self.padded_base_height_in + 1, i * self.padded_base_height_in + 1 + pad_len_long))
+            padding_ch_down_target_y += list(
+                range(i * self.padded_base_height_in + 1, i * self.padded_base_height_in + 1 + pad_len_long)
+            )
             padding_ch_down_target_x += [0] * pad_len_long
             padding_ch_down_src_y += [next_map2[i] * self.base_height_in] * pad_len_long
             padding_ch_down_src_x += list(range(0, pad_len_long))
@@ -149,53 +166,57 @@ class _IcoBase(nn.Module):
             # no channel shift padding
             # top right padding
             padding_target_y += [i * self.padded_base_height_in] * pad_len_variable
-            padding_target_x += list(range(self.padded_width_half_in + 1, self.padded_width_half_in + 1 + pad_len_variable))
+            padding_target_x += list(
+                range(self.padded_width_half_in + 1, self.padded_width_half_in + 1 + pad_len_variable)
+            )
             padding_src_y += [(prev_map2[i] + 1) * self.base_height_in - 1] * pad_len_variable
             padding_src_x += list(range(1, 1 + pad_len_variable))
 
             # bottom left padding
             padding_target_y += [(i + 1) * self.padded_base_height_in - 1] * pad_len_long
-            padding_target_x += list(range(1, 1+ pad_len_long))
+            padding_target_x += list(range(1, 1 + pad_len_long))
             padding_src_y += [next_map2[i] * self.base_height_in] * pad_len_long
             padding_src_x += list(range(self.base_height_in, self.base_height_in + pad_len_long))
 
         if self.in_feature_depth == 6:
-            self.register_buffer('padding_ch_up_target_y', torch.LongTensor(padding_ch_up_target_y))
-            self.register_buffer('padding_ch_up_target_x', torch.LongTensor(padding_ch_up_target_x))
-            self.register_buffer('padding_ch_up_src_y', torch.LongTensor(padding_ch_up_src_y))
-            self.register_buffer('padding_ch_up_src_x', torch.LongTensor(padding_ch_up_src_x))
+            self.register_buffer("padding_ch_up_target_y", torch.LongTensor(padding_ch_up_target_y))
+            self.register_buffer("padding_ch_up_target_x", torch.LongTensor(padding_ch_up_target_x))
+            self.register_buffer("padding_ch_up_src_y", torch.LongTensor(padding_ch_up_src_y))
+            self.register_buffer("padding_ch_up_src_x", torch.LongTensor(padding_ch_up_src_x))
 
-            self.register_buffer('padding_ch_down_target_y', torch.LongTensor(padding_ch_down_target_y))
-            self.register_buffer('padding_ch_down_target_x', torch.LongTensor(padding_ch_down_target_x))
-            self.register_buffer('padding_ch_down_src_y', torch.LongTensor(padding_ch_down_src_y))
-            self.register_buffer('padding_ch_down_src_x', torch.LongTensor(padding_ch_down_src_x))
+            self.register_buffer("padding_ch_down_target_y", torch.LongTensor(padding_ch_down_target_y))
+            self.register_buffer("padding_ch_down_target_x", torch.LongTensor(padding_ch_down_target_x))
+            self.register_buffer("padding_ch_down_src_y", torch.LongTensor(padding_ch_down_src_y))
+            self.register_buffer("padding_ch_down_src_x", torch.LongTensor(padding_ch_down_src_x))
 
-            self.register_buffer('padding_target_y', torch.LongTensor(padding_target_y))
-            self.register_buffer('padding_target_x', torch.LongTensor(padding_target_x))
-            self.register_buffer('padding_src_y', torch.LongTensor(padding_src_y))
-            self.register_buffer('padding_src_x', torch.LongTensor(padding_src_x))
+            self.register_buffer("padding_target_y", torch.LongTensor(padding_target_y))
+            self.register_buffer("padding_target_x", torch.LongTensor(padding_target_x))
+            self.register_buffer("padding_src_y", torch.LongTensor(padding_src_y))
+            self.register_buffer("padding_src_x", torch.LongTensor(padding_src_x))
         else:
             padding_target_y += padding_ch_up_target_y + padding_ch_down_target_y
             padding_target_x += padding_ch_up_target_x + padding_ch_down_target_x
             padding_src_y += padding_ch_up_src_y + padding_ch_down_src_y
             padding_src_x += padding_ch_up_src_x + padding_ch_down_src_x
 
-            self.register_buffer('padding_target_y', torch.LongTensor(padding_target_y))
-            self.register_buffer('padding_target_x', torch.LongTensor(padding_target_x))
-            self.register_buffer('padding_src_y', torch.LongTensor(padding_src_y))
-            self.register_buffer('padding_src_x', torch.LongTensor(padding_src_x))
+            self.register_buffer("padding_target_y", torch.LongTensor(padding_target_y))
+            self.register_buffer("padding_target_x", torch.LongTensor(padding_target_x))
+            self.register_buffer("padding_src_y", torch.LongTensor(padding_src_y))
+            self.register_buffer("padding_src_x", torch.LongTensor(padding_src_x))
 
-        row_target = (torch.arange(1, self.padded_base_height_in - 1) +
-                      torch.arange(0, self.padded_base_height_in * 5, self.padded_base_height_in)[:, None]).flatten()
-        self.register_buffer('row_target', row_target)
+        row_target = (
+            torch.arange(1, self.padded_base_height_in - 1)
+            + torch.arange(0, self.padded_base_height_in * 5, self.padded_base_height_in)[:, None]
+        ).flatten()
+        self.register_buffer("row_target", row_target)
 
         # corner handling in padding
-        if self.corner_mode == 'zeros':
+        if self.corner_mode == "zeros":
             # corner indices
             pcorner_x = torch.tensor([1, self.padded_width_half_in])
-            self.register_buffer('pcorner_x', pcorner_x)
+            self.register_buffer("pcorner_x", pcorner_x)
             pcorner_y = torch.arange(1, 6)[:, None] * self.padded_base_height_in - 2
-            self.register_buffer('pcorner_y', pcorner_y)
+            self.register_buffer("pcorner_y", pcorner_y)
 
             self.pcorner_handle = self.set_pcorners_zero
         else:
@@ -216,40 +237,50 @@ class _IcoBase(nn.Module):
             ext_corners_src_y = torch.stack((top_corner_src_y, bottom_corner_src_y))
             ext_corners_src_x = torch.stack((top_corner_src_x, bottom_corner_src_x))
 
-            self.register_buffer('ext_corners_target_y', ext_corners_target_y)
-            self.register_buffer('ext_corners_target_x', ext_corners_target_x)
-            self.register_buffer('ext_corners_src_y', ext_corners_src_y)
-            self.register_buffer('ext_corners_src_x', ext_corners_src_x)
+            self.register_buffer("ext_corners_target_y", ext_corners_target_y)
+            self.register_buffer("ext_corners_target_x", ext_corners_target_x)
+            self.register_buffer("ext_corners_src_y", ext_corners_src_y)
+            self.register_buffer("ext_corners_src_x", ext_corners_src_x)
 
             self.pcorner_handle = self.set_pcorners_average
 
-    def set_pcorners_zero(self, outputs, inputs):
+    def set_pcorners_zero(self, outputs: torch.Tensor, inputs: torch.Tensor):
         outputs[:, :, self.pcorner_y, self.pcorner_x] = 0
 
-    def set_pcorners_average(self, outputs, inputs):
+    def set_pcorners_average(self, outputs: torch.Tensor, inputs: torch.Tensor):
         outputs[:, :, self.ext_corners_target_y, self.ext_corners_target_x] = torch.mean(
-            inputs[:, :, self.ext_corners_src_y, self.ext_corners_src_x], -1, True)
+            inputs[:, :, self.ext_corners_src_y, self.ext_corners_src_x], -1, True
+        )
 
-    def set_outcorners_zero(self, outputs):
+    def set_outcorners_zero(self, outputs: torch.Tensor):
         outputs[:, :, self.corner_target_y, self.corner_target_x] = 0
 
-    def set_outcorners_average(self, outputs):
+    def set_outcorners_average(self, outputs: torch.Tensor):
         outputs[:, :, self.corner_target_y, self.corner_target_x] = torch.mean(
-            outputs[:, :, self.corner_src_y, self.corner_src_x], -1, True)
+            outputs[:, :, self.corner_src_y, self.corner_src_x], -1, True
+        )
 
-    def g_pad(self, inputs):
+    def g_pad(self, inputs: torch.Tensor):
         outputs = inputs.new_zeros(inputs.size(0), self.in_channels, self.padded_height_in, self.padded_width_in)
 
         # do the padding
         if self.in_feature_depth == 6:
-            outputs[:, :, self.padding_target_y, self.padding_target_x] = inputs[:, :, self.padding_src_y, self.padding_src_x]
-            outputs[:, :, self.padding_ch_up_target_y, self.padding_ch_up_target_x] = inputs[:, self.ch_shift_up, self.padding_ch_up_src_y, self.padding_ch_up_src_x]
-            outputs[:, :, self.padding_ch_down_target_y, self.padding_ch_down_target_x] = inputs[:, self.ch_shift_down, self.padding_ch_down_src_y, self.padding_ch_down_src_x]
+            outputs[:, :, self.padding_target_y, self.padding_target_x] = inputs[
+                :, :, self.padding_src_y, self.padding_src_x
+            ]
+            outputs[:, :, self.padding_ch_up_target_y, self.padding_ch_up_target_x] = inputs[
+                :, self.ch_shift_up, self.padding_ch_up_src_y, self.padding_ch_up_src_x
+            ]
+            outputs[:, :, self.padding_ch_down_target_y, self.padding_ch_down_target_x] = inputs[
+                :, self.ch_shift_down, self.padding_ch_down_src_y, self.padding_ch_down_src_x
+            ]
         else:
-            outputs[:, :, self.padding_target_y, self.padding_target_x] = inputs[:, :, self.padding_src_y, self.padding_src_x]
+            outputs[:, :, self.padding_target_y, self.padding_target_x] = inputs[
+                :, :, self.padding_src_y, self.padding_src_x
+            ]
 
         # copy maps from input
-        outputs.narrow(3, 1, self.padded_width_in-2).index_copy_(2, self.row_target, inputs)
+        outputs.narrow(3, 1, self.padded_width_in - 2).index_copy_(2, self.row_target, inputs)
 
         # deal with corners according to selected mode
         self.pcorner_handle(outputs, inputs)
@@ -264,24 +295,43 @@ class _IcoBase(nn.Module):
             nn.init.uniform_(self.bias, -bound, bound)
 
     def extra_repr(self):
-        s = ('in_features={in_features}, '
-             'in_feature_depth={in_feature_depth}, '
-             'in_channels={in_channels}, '
-             'out_features={out_features}, '
-             'out_feature_depth={out_feature_depth}, '
-             'out_channels={out_channels}, '
-             'subdivisions={in_subdivisions}, '
-             'stride={stride}')
-        if 'bias' in self.__dict__ and self.bias is None:
-            s += ', bias=False'
+        s = (
+            "in_features={in_features}, "
+            "in_feature_depth={in_feature_depth}, "
+            "in_channels={in_channels}, "
+            "out_features={out_features}, "
+            "out_feature_depth={out_feature_depth}, "
+            "out_channels={out_channels}, "
+            "subdivisions={in_subdivisions}, "
+            "stride={stride}"
+        )
+        if "bias" in self.__dict__ and self.bias is None:
+            s += ", bias=False"
         return s.format(**self.__dict__)
 
 
 class _IcoConv(_IcoBase):
-    def __init__(self, in_features, out_features, bias, in_subdivisions, out_subdivisions, in_feature_depth, out_feature_depth, kernel_size, corner_mode):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool,
+        in_subdivisions: int,
+        out_subdivisions: int,
+        in_feature_depth: int,
+        out_feature_depth: int,
+        kernel_size: int,
+        corner_mode: str,
+    ):
         super(_IcoConv, self).__init__(
-            in_features, out_features,
-            in_subdivisions, out_subdivisions, in_feature_depth, out_feature_depth, corner_mode)
+            in_features,
+            out_features,
+            in_subdivisions,
+            out_subdivisions,
+            in_feature_depth,
+            out_feature_depth,
+            corner_mode,
+        )
 
         # sanity checks
         assert kernel_size == 1 or kernel_size == 3
@@ -303,7 +353,7 @@ class _IcoConv(_IcoBase):
         if bias:
             self.bias = nn.Parameter(torch.Tensor(self.out_features, 1))
         else:
-            self.register_parameter('bias', None)
+            self.register_parameter("bias", None)
         self.reset_parameters()
 
         if self.kernel_size == 3:
@@ -314,21 +364,26 @@ class _IcoConv(_IcoBase):
             conv_base_height_out = self.padded_base_height_in // self.stride
             inner_padding_after_conv = 2 // self.stride
             row_offset_after_conv = 1 if self.stride == 2 else 0
-            strided_row_src = (torch.arange(conv_base_height_out - inner_padding_after_conv) +
-                                         torch.arange(0, conv_base_height_out * 5, conv_base_height_out)[:, None]).flatten() + row_offset_after_conv
-            self.register_buffer('strided_row_src', strided_row_src)
+            strided_row_src = (
+                torch.arange(conv_base_height_out - inner_padding_after_conv)
+                + torch.arange(0, conv_base_height_out * 5, conv_base_height_out)[:, None]
+            ).flatten() + row_offset_after_conv
+            self.register_buffer("strided_row_src", strided_row_src)
 
-    def setup_filter_expansion(self, weights_per_filter):
-
+    def setup_filter_expansion(self, weights_per_filter: int):
         # indices for filter creation: rows are clockwise rotations
         if weights_per_filter == 7:
             # for hexagonal kernel
-            weight_indices = torch.tensor([[0, 1, 2, 3, 4, 5, 6],
-                                           [2, 0, 5, 3, 1, 6, 4],
-                                           [5, 2, 6, 3, 0, 4, 1],
-                                           [6, 5, 4, 3, 2, 1, 0],
-                                           [4, 6, 1, 3, 5, 0, 2],
-                                           [1, 4, 0, 3, 6, 2, 5]]).type(torch.LongTensor)
+            weight_indices = torch.tensor(
+                [
+                    [0, 1, 2, 3, 4, 5, 6],
+                    [2, 0, 5, 3, 1, 6, 4],
+                    [5, 2, 6, 3, 0, 4, 1],
+                    [6, 5, 4, 3, 2, 1, 0],
+                    [4, 6, 1, 3, 5, 0, 2],
+                    [1, 4, 0, 3, 6, 2, 5],
+                ]
+            ).type(torch.LongTensor)
         else:
             # for 1x1 kernel
             weight_indices = torch.tensor([[0], [0], [0], [0], [0], [0]]).type(torch.LongTensor)
@@ -343,20 +398,22 @@ class _IcoConv(_IcoBase):
             channel_indices = torch.arange(self.in_channels).expand(6, -1)
 
         k = torch.arange(self.in_channels * weights_per_filter).view(self.in_channels, weights_per_filter)
-        l = torch.stack((
-            k[channel_indices[0]].index_select(1, weight_indices[0]),
-            k[channel_indices[1]].index_select(1, weight_indices[1]),
-            k[channel_indices[2]].index_select(1, weight_indices[2]),
-            k[channel_indices[3]].index_select(1, weight_indices[3]),
-            k[channel_indices[4]].index_select(1, weight_indices[4]),
-            k[channel_indices[5]].index_select(1, weight_indices[5]),
-        ))
+        l = torch.stack(
+            (
+                k[channel_indices[0]].index_select(1, weight_indices[0]),
+                k[channel_indices[1]].index_select(1, weight_indices[1]),
+                k[channel_indices[2]].index_select(1, weight_indices[2]),
+                k[channel_indices[3]].index_select(1, weight_indices[3]),
+                k[channel_indices[4]].index_select(1, weight_indices[4]),
+                k[channel_indices[5]].index_select(1, weight_indices[5]),
+            )
+        )
         m = l
         for i in range(1, self.out_features):
             m = torch.cat((m, l + i * self.in_channels * weights_per_filter), 0)
-        self.register_buffer('expanded_weight_indices', m)
+        self.register_buffer("expanded_weight_indices", m)
 
-    def compose_filters(self, filters, bias_expanded=None):
+    def compose_filters(self, filters: torch.Tensor, bias_expanded: torch.Tensor | None = None):
         # create suitable view of filters
         if self.kernel_size == 3:
             filters_flattened = filters.view([self.out_channels, self.in_channels, -1]).narrow(2, 1, 7)
@@ -367,7 +424,7 @@ class _IcoConv(_IcoBase):
         if self.bias is not None:
             bias_expanded.copy_(self.bias.expand(-1, 6).flatten())
 
-    def _forward(self, inputs):
+    def _forward(self, inputs: torch.Tensor):
         # compose filters & bias
         filters = inputs.new_zeros([self.out_channels, self.in_channels, self.kernel_size, self.kernel_size])
         bias_expanded = None
@@ -394,28 +451,44 @@ class _IcoConv(_IcoBase):
 
         return outputs
 
-    def forward(self, inputs):
+    def forward(self, inputs: torch.Tensor):
         return self._forward(inputs)
 
 
 class _IcoPool(_IcoBase):
-    def __init__(self, features, subdivisions, feature_depth, corner_mode, pool_offset=(0, 0)):
+    def __init__(
+        self,
+        features: int,
+        subdivisions: int,
+        feature_depth: int,
+        corner_mode: str,
+        pool_offset: int | tuple[int, int] = (0, 0),
+    ):
         super(_IcoPool, self).__init__(
-            features, features,
-            subdivisions, subdivisions-1, feature_depth, feature_depth, corner_mode)
+            features, features, subdivisions, subdivisions - 1, feature_depth, feature_depth, corner_mode
+        )
 
         pool_offset = pool_offset if isinstance(pool_offset, tuple) else (pool_offset, pool_offset)
 
         # compute pooling mask for each pixel that is source of pooling kernel
-        # mask(x) = [x-padded_width_in, x-padded_width_in+1, x-1, x, x+1, x+padded_width_in-1, x+padded_width_in]
-        hexa_mask_offsets = torch.LongTensor([-self.padded_width_in, -self.padded_width_in + 1,
-                                                   -1, 0, +1,
-                                                   self.padded_width_in - 1, self.padded_width_in])
+        hexa_mask_offsets = torch.LongTensor(
+            [
+                -self.padded_width_in,
+                -self.padded_width_in + 1,
+                -1,
+                0,
+                +1,
+                self.padded_width_in - 1,
+                self.padded_width_in,
+            ]
+        )
 
         # get all pixels that are source of pooling kernel in column vector
         source_columns = torch.arange(pool_offset[0] + 1, self.padded_width_in - 1, 2)
-        source_rows = (torch.arange(pool_offset[1] + 1, self.padded_base_height_in - 1, 2) +
-                       torch.arange(5).unsqueeze(-1) * self.padded_base_height_in).view(-1, 1)
+        source_rows = (
+            torch.arange(pool_offset[1] + 1, self.padded_base_height_in - 1, 2)
+            + torch.arange(5).unsqueeze(-1) * self.padded_base_height_in
+        ).view(-1, 1)
         source_indices = (source_rows * self.padded_width_in + source_columns).view(-1, 1)
 
         self.pooling_indices = source_indices + hexa_mask_offsets
@@ -423,13 +496,14 @@ class _IcoPool(_IcoBase):
 
         self.setup_g_padding()
 
-    def forward(self, inputs):
+    def forward(self, inputs: torch.Tensor):
         # pad the input to prepare for hexagonal pooling
         inputs = self.g_pad(inputs)
 
         # do hexagonal pooling
         inputs, _ = self.pooling_function(
-            inputs.view([inputs.shape[0], inputs.shape[1], -1])[..., self.pooling_indices], dim=-1)
+            inputs.view([inputs.shape[0], inputs.shape[1], -1])[..., self.pooling_indices], dim=-1
+        )
 
         # return to input dimensions, though downsampled
         inputs = inputs.view([inputs.shape[0], inputs.shape[1], self.height_out, -1])
@@ -438,31 +512,48 @@ class _IcoPool(_IcoBase):
 
 
 class IcoMaxPool(_IcoPool):
-    def __init__(self, features, subdivisions, feature_depth=6, corner_mode='zeros', pool_offset=(0, 0)):
-        super(IcoMaxPool, self).__init__(
-            features, subdivisions, feature_depth, corner_mode, pool_offset)
+    def __init__(
+        self,
+        features: int,
+        subdivisions: int,
+        feature_depth: int = 6,
+        corner_mode: str = "zeros",
+        pool_offset: int | tuple[int, int] = (0, 0),
+    ):
+        super(IcoMaxPool, self).__init__(features, subdivisions, feature_depth, corner_mode, pool_offset)
         self.pooling_function = torch.max
 
 
 class IcoMinPool(_IcoPool):
-    def __init__(self, features, subdivisions, feature_depth=6, corner_mode='zeros', pool_offset=(0, 0)):
-        super(IcoMinPool, self).__init__(
-            features, subdivisions, feature_depth, corner_mode, pool_offset)
+    def __init__(
+        self,
+        features: int,
+        subdivisions: int,
+        feature_depth: int = 6,
+        corner_mode: str = "zeros",
+        pool_offset: int | tuple[int, int] = (0, 0),
+    ):
+        super(IcoMinPool, self).__init__(features, subdivisions, feature_depth, corner_mode, pool_offset)
         self.pooling_function = torch.min
 
 
 class IcoAvgPool(_IcoPool):
-    def __init__(self, features, subdivisions, feature_depth=6, corner_mode='zeros', pool_offset=(0, 0)):
-        super(IcoAvgPool, self).__init__(
-            features, subdivisions, feature_depth, corner_mode, pool_offset)
+    def __init__(
+        self,
+        features: int,
+        subdivisions: int,
+        feature_depth: int = 6,
+        corner_mode: str = "zeros",
+        pool_offset: int | tuple[int, int] = (0, 0),
+    ):
+        super(IcoAvgPool, self).__init__(features, subdivisions, feature_depth, corner_mode, pool_offset)
 
-    def forward(self, inputs):
+    def forward(self, inputs: torch.Tensor):
         # pad the input to prepare for hexagonal pooling
         inputs = self.g_pad(inputs)
 
         # do hexagonal pooling
-        inputs = torch.mean(
-            inputs.view([inputs.shape[0], inputs.shape[1], -1])[..., self.pooling_indices], dim=-1)
+        inputs = torch.mean(inputs.view([inputs.shape[0], inputs.shape[1], -1])[..., self.pooling_indices], dim=-1)
 
         # return to input dimensions, though downsampled
         inputs = inputs.view([inputs.shape[0], inputs.shape[1], self.height_out, -1])
@@ -471,10 +562,25 @@ class IcoAvgPool(_IcoPool):
 
 
 class _IcoUpsample(_IcoBase):
-    def __init__(self, in_features, out_features, in_subdivisions, out_subdivisions, in_feature_depth, out_feature_depth, corner_mode):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        in_subdivisions: int,
+        out_subdivisions: int,
+        in_feature_depth: int,
+        out_feature_depth: int,
+        corner_mode: str,
+    ):
         super(_IcoUpsample, self).__init__(
-            in_features, out_features,
-            in_subdivisions, out_subdivisions, in_feature_depth, out_feature_depth, corner_mode)
+            in_features,
+            out_features,
+            in_subdivisions,
+            out_subdivisions,
+            in_feature_depth,
+            out_feature_depth,
+            corner_mode,
+        )
 
         # general
         factor = 2
@@ -485,7 +591,7 @@ class _IcoUpsample(_IcoBase):
         # upsampling parameters
         self.size = (self.padded_height_in * factor - 1, self.padded_width_in * factor - 1)
         self.scale_factor = None
-        self.mode = 'bilinear'
+        self.mode = "bilinear"
         self.align_corners = True
 
         # output extraction
@@ -499,13 +605,12 @@ class _IcoUpsample(_IcoBase):
         row_offset = 1  # ignore first row
         base_height_out = self.base_height_in * factor
         padded_base_height_out = self.padded_base_height_in * factor
-        out_row_indices = (torch.arange(base_height_out) +
-                       torch.arange(0, 5*padded_base_height_out, padded_base_height_out)[:,
-                       None]).flatten() + row_offset
-        self.register_buffer('out_row_indices', out_row_indices)
+        out_row_indices = (
+            torch.arange(base_height_out) + torch.arange(0, 5 * padded_base_height_out, padded_base_height_out)[:, None]
+        ).flatten() + row_offset
+        self.register_buffer("out_row_indices", out_row_indices)
 
-    def forward(self, inputs):
-
+    def forward(self, inputs: torch.Tensor):
         # pad input
         inputs = self.g_pad(inputs)
 
@@ -522,15 +627,24 @@ class _IcoUpsample(_IcoBase):
 
 
 class IcoBatchNorm(nn.BatchNorm3d):
-    def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True):
-        super(IcoBatchNorm, self).__init__(num_features, eps, momentum, affine, track_running_stats)
+    def __init__(
+        self,
+        num_features: int,
+        eps: float = 1e-5,
+        momentum: float = 0.1,
+        affine: bool = True,
+        track_running_stats: bool = True,
+        device=None,
+        dtype=None,
+    ):
+        super(IcoBatchNorm, self).__init__(num_features, eps, momentum, affine, track_running_stats, device, dtype)
         self.D = torch.tensor(6)
 
-    def forward(self, input):
+    def forward(self, input: torch.Tensor):
         N, C, H, W = input.size()
         D = self.D
-        #assert torch.remainder(C, D) == 0
-        G = torch.div(C, D, rounding_mode='trunc')
+        # assert torch.remainder(C, D) == 0
+        G = torch.div(C, D, rounding_mode="trunc")
 
         # reshape to 3D data
         input = input.view(N, G, D, H, W)
@@ -545,27 +659,61 @@ class IcoBatchNorm(nn.BatchNorm3d):
 
 
 class IcoConvS2R(_IcoConv):
-    def __init__(self, in_features, out_features, stride=1, bias=True, subdivisions=0, kernel_size=3, corner_mode='zeros'):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        stride: int = 1,
+        bias: bool = True,
+        subdivisions: int = 0,
+        kernel_size: int = 3,
+        corner_mode: str = "zeros",
+    ):
         super(IcoConvS2R, self).__init__(
-            in_features, out_features, bias=bias,
+            in_features,
+            out_features,
+            bias=bias,
             in_subdivisions=subdivisions,
             out_subdivisions=subdivisions if stride == 1 else subdivisions - 1,
-            in_feature_depth=1, out_feature_depth=6, kernel_size=kernel_size, corner_mode=corner_mode)
+            in_feature_depth=1,
+            out_feature_depth=6,
+            kernel_size=kernel_size,
+            corner_mode=corner_mode,
+        )
 
 
 class IcoConvR2R(_IcoConv):
-    def __init__(self, in_features, out_features, stride=1, bias=True, subdivisions=0, kernel_size=3, corner_mode='zeros'):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        stride: int = 1,
+        bias: bool = True,
+        subdivisions: int = 0,
+        kernel_size: int = 3,
+        corner_mode: str = "zeros",
+    ):
         super(IcoConvR2R, self).__init__(
-            in_features, out_features, bias=bias,
+            in_features,
+            out_features,
+            bias=bias,
             in_subdivisions=subdivisions,
             out_subdivisions=subdivisions if stride == 1 else subdivisions - 1,
-            in_feature_depth=6, out_feature_depth=6, kernel_size=kernel_size, corner_mode=corner_mode)
+            in_feature_depth=6,
+            out_feature_depth=6,
+            kernel_size=kernel_size,
+            corner_mode=corner_mode,
+        )
 
 
 class IcoUpsampleR2R(_IcoUpsample):
-    def __init__(self, features, in_subdivisions=0, corner_mode='zeros'):
+    def __init__(self, features: int, in_subdivisions: int = 0, corner_mode: str = "zeros"):
         super(IcoUpsampleR2R, self).__init__(
-            features, features,
+            features,
+            features,
             in_subdivisions=in_subdivisions,
             out_subdivisions=in_subdivisions + 1,
-            in_feature_depth=6, out_feature_depth=6, corner_mode=corner_mode)
+            in_feature_depth=6,
+            out_feature_depth=6,
+            corner_mode=corner_mode,
+        )

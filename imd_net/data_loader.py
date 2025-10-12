@@ -2,7 +2,7 @@ import numpy as np
 import os
 import torch
 from torch.utils.data import Dataset, DataLoader
-import lightning as pl
+import lightning as L
 from pathlib import Path
 from typing import Optional
 
@@ -41,23 +41,22 @@ class IcoMeshDataset(Dataset):
             data_dir: path to data directory
             partition: train or test
         """
-        dataset_path = Path(data_dir)
+        dataset_path: Path = Path(data_dir)
 
-        assert (partition in ["train", "test", "val", "all"])
-        assert subdivisions >= 0, 'subdivision must be >= 0'
-        assert ~dataset_path.exists() or ~dataset_path.is_dir(), \
-            '{} does not exist or is not a dir'.format(dataset_path)
+        assert partition in ["train", "test", "val", "all"]
+        assert subdivisions >= 0, "subdivision must be >= 0"
+        assert dataset_path.exists() and dataset_path.is_dir(), f"{dataset_path} does not exist or is not a dir"
 
         # get file list
-        splits_dir = Path(splits_dir)
-        partitions = ['train', 'test', 'val'] if partition == 'all' else [partition]
+        splits_dir: Path = Path(splits_dir)
+        partitions = ["train", "test", "val"] if partition == "all" else [partition]
         lines = []
         for part in partitions:
-            split_file = splits_dir / "{}_split_{}.txt".format(part, dataset_path.name)
+            split_file = splits_dir / f"{part}_split_{dataset_path.name}.txt"
             with open(split_file, "r") as f:
                 lines.extend(f.readlines())
 
-        self.flist = [dataset_path.joinpath(l.replace('\n', '').split(' ')[0]) for l in lines]
+        self.flist = [dataset_path.joinpath(l.replace("\n", "").split(" ")[0]) for l in lines]
 
         self.icomap_width = 2 ** (subdivisions + 1)
         self.data_internal_scale = data_internal_scale
@@ -74,10 +73,10 @@ class IcoMeshDataset(Dataset):
     def __len__(self):
         return len(self.flist)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         return self.loaded_items[idx] or self._loaditem(idx)
 
-    def _loaditem(self, idx):
+    def _loaditem(self, idx: int):
         fname = self.flist[idx]
         data = np.load(str(fname))["data"][:3, :-2]
         data = data.reshape(data.shape[0], -1, self.icomap_width)
@@ -98,7 +97,7 @@ class IcoMeshDataset(Dataset):
         return data, (targets.transpose(), feature_mask), idx
 
 
-class IcoMeshDataModule(pl.LightningDataModule):
+class IcoMeshDataModule(L.LightningDataModule):
     """Lightning data module for IcoMesh datasets.
 
     Args:
@@ -130,11 +129,11 @@ class IcoMeshDataModule(pl.LightningDataModule):
         super().__init__()
 
         # unpack input
-        data_dir = Path(data_dir)
+        data_dir: Path = Path(data_dir)
 
         # check sanity of input
-        assert ~data_dir.exists() or ~data_dir.is_dir(), '{} does not exist or is not a dir'.format(data_dir)
-        assert subdivisions >= 0, 'subdivision must be >= 0'
+        assert subdivisions >= 0, "subdivision must be >= 0"
+        assert data_dir.exists() and data_dir.is_dir(), f"{data_dir} does not exist or is not a dir"
 
         self.data_dir = data_dir
         self.splits_dir = splits_dir
@@ -148,41 +147,73 @@ class IcoMeshDataModule(pl.LightningDataModule):
         self.fmask_thres = fmask_thres
         self.fmask_weight = fmask_weight
 
-    def _create_val_dataloader(self):
-        dataset = IcoMeshDataset(str(self.data_dir), self.splits_dir, "val",
-                                 self.subdivisions, self.data_internal_scale, self.load_data_to_ram,
-                                 self.vmask_thres, self.vmask_weight, self.fmask_thres, self.fmask_weight)
-        loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False,
-                            drop_last=False, pin_memory=True)
-        return loader
-
     def prepare_data(self, *args, **kwargs):
         pass
 
-    def setup(self, stage=None):
-        pass
+    def _create_dataset(self, partition: str) -> IcoMeshDataset:
+        return IcoMeshDataset(
+            str(self.data_dir),
+            self.splits_dir,
+            partition,
+            self.subdivisions,
+            self.data_internal_scale,
+            self.load_data_to_ram,
+            self.vmask_thres,
+            self.vmask_weight,
+            self.fmask_thres,
+            self.fmask_weight,
+        )
+
+    def setup(self, stage: str):
+        # Assign train/val datasets for use in dataloaders
+        if stage == "fit":
+            self.data_train = self._create_dataset("train")
+            self.data_val = self._create_dataset("val")
+
+        # Assign test dataset for use in dataloader(s)
+        if stage == "test":
+            self.data_test = self._create_dataset("val")
+
+        if stage == "predict":
+            self.data_predict = self._create_dataset("all")
 
     def train_dataloader(self):
-        dataset = IcoMeshDataset(str(self.data_dir), self.splits_dir, "train",
-                                 self.subdivisions, self.data_internal_scale, self.load_data_to_ram,
-                                 self.vmask_thres, self.vmask_weight, self.fmask_thres, self.fmask_weight)
-        loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True,
-                            drop_last=True, pin_memory=True)
-        return loader
+        return DataLoader(
+            self.data_train,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=True,
+            drop_last=True,
+            pin_memory=True,
+        )
 
     def val_dataloader(self):
-        return self._create_val_dataloader()
+        return DataLoader(
+            self.data_val,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=False,
+            drop_last=False,
+            pin_memory=True,
+        )
 
     def test_dataloader(self):
-        return None
+        return DataLoader(
+            self.data_test,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=False,
+            drop_last=False,
+            pin_memory=True,
+        )
 
+    def predict_dataloader(self):
+        return DataLoader(
+            self.data_predict,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=False,
+            drop_last=False,
+            pin_memory=True,
+        )
 
-class IcoMeshPredictionModule(IcoMeshDataModule):
-    def train_dataloader(self):
-        pass
-
-    def val_dataloader(self):
-        pass
-
-    def test_dataloader(self):
-        return self._create_val_dataloader()
