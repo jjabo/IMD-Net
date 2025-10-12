@@ -207,5 +207,5 @@ class IcoDenoiseNet(pl.LightningModule):
                                            global_step=self.global_step)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.net.parameters(), lr=self.hparams.learning_rate)
+        optimizer = torch.optim.AdamW(self.net.parameters(), lr=self.learning_rate)
         return optimizer
