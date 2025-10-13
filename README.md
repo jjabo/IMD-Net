@@ -45,3 +45,19 @@ The data is a random subset of the [ABC dataset](https://deep-geometry.github.io
 ## References
 
 The code in the imd_net/icocnn module is an implementation of [Gauge Equivariant Convolutional Networks and the Icosahedral CNN](https://arxiv.org/abs/1902.04615)
+
+
+## Citing IMD-Net
+
+If you use IMD-Net in your research, please use the following BibTeX entry.
+
+```
+@article{9749069,
+  title={IMD-Net: A Deep Learning-Based Icosahedral Mesh Denoising Network},
+  author={Botsch, Jan and Jain, Hardik and Hellwich, Olaf},
+  journal={IEEE Access},
+  year={2022},
+  volume={10},
+  pages={38635-38649}
+}
+```
