@@ -1,7 +1,7 @@
 [project]
-name = "imd-net-dev"
+name = "imd-net"
 version = "1.0.0"
-description = "Add your description here"
+description = "Implementation of IMD-Net: A Deep Learning-Based Icosahedral Mesh Denoising Network"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

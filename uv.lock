@@ -577,7 +577,7 @@ wheels = [
 ]
 
 [[package]]
-name = "imd-net-dev"
+name = "imd-net"
 version = "1.0.0"
 source = { virtual = "." }
 dependencies = [
