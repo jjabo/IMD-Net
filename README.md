@@ -29,7 +29,11 @@ And inference like this:
 mkdir ./predictions
 uv run imd_net/main.py test -c configs/abc_small_gwn02.yaml --data.data_dir PATH_TO_DATASET --data.splits_dir ./examples --ckpt_path PATH_TO_CHECKPOINT --trainer.callbacks+=SavePredictionsCallback --trainer.callbacks.save_dir ./predictions
 ```
-The above line also writes the predictions of the val/test set to disk.
+The above line also writes the predictions of the val/test set to disk. Accordingly, to run the provided checkpoint execute
+```shell
+mkdir ./predictions
+uv run imd_net/main.py test -c configs/abc_small_gwn02.yaml --data.data_dir PATH_TO_DATASET --data.splits_dir ./examples --ckpt_path pretrained_nets/imdnet_abc_small_gwn02.ckpt --trainer.callbacks+=SavePredictionsCallback --trainer.callbacks.save_dir ./predictions
+```
 
 ## Data
 
